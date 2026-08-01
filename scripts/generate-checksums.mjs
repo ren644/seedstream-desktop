@@ -1,11 +1,13 @@
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const distDirectory = path.join(projectRoot, 'dist')
-const artifactPattern = /^SeedStream-.+\.(?:dmg|zip|exe)$/
+const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
+const escapedVersion = packageJson.version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const artifactPattern = new RegExp(`^SeedStream-${escapedVersion}-.+\\.(?:dmg|zip|exe)$`)
 
 function sha256 (filePath) {
   return new Promise((resolve, reject) => {
@@ -21,7 +23,7 @@ const artifactNames = (await readdir(distDirectory))
   .filter(fileName => artifactPattern.test(fileName))
   .sort((left, right) => left.localeCompare(right, 'en'))
 
-if (artifactNames.length === 0) throw new Error('No SeedStream artifacts found in dist')
+if (artifactNames.length === 0) throw new Error(`No SeedStream ${packageJson.version} artifacts found in dist`)
 
 const lines = []
 for (const fileName of artifactNames) {

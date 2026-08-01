@@ -193,6 +193,7 @@ test('streams from ephemeral cache, then purges it before permanent download', a
     assert.equal((await stat(ephemeralPath)).isDirectory(), true)
     assert.equal(client.addCalls.at(-1).options.destroyStoreOnDestroy, true)
     assert.equal(client.addCalls.at(-1).options.deselect, true)
+    assert.equal(client.addCalls.at(-1).options.noPeersIntervalTime, 10)
 
     await engine.startDownload(imported.id)
     assert.equal(client.removeCalls[0].options.destroyStore, true)
@@ -229,11 +230,18 @@ test('closing an ephemeral player removes cached pieces and keeps imported metad
   await withEngine(async ({ torrentBuffer, cacheManager, engine }) => {
     const task = await engine.importTorrentBuffer(torrentBuffer, 'sample.torrent')
     await engine.play(task.id, 0)
+    const activeTorrent = engine.client.addCalls.at(-1).torrent
+    activeTorrent.emit('noPeers', 'tracker')
+    assert.equal(engine.getTask(task.id).noPeers, true)
+    activeTorrent.emit('wire', {})
+    assert.equal(engine.getTask(task.id).noPeers, false)
+    activeTorrent.emit('noPeers', 'dht')
     const cachePath = cacheManager.taskPath(task.id)
     await writeFile(path.join(cachePath, 'piece.bin'), 'temporary')
 
     await engine.closePlayer(task.id)
     assert.equal(engine.getTask(task.id).policy.phase, 'ready')
+    assert.equal(engine.getTask(task.id).noPeers, false)
     await assert.rejects(() => stat(cachePath), { code: 'ENOENT' })
   })
 })
