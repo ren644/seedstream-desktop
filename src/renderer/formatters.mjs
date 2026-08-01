@@ -34,7 +34,10 @@ export function formatPercent (progress) {
 
 export function statusLabel (task) {
   if (task?.policy?.phase === 'ready') return '等待操作'
-  if (task?.policy?.phase === 'streaming') return '边下边播'
+  if (task?.policy?.phase === 'streaming') {
+    if (Number.isFinite(task.numPeers) && task.numPeers > 0) return '边下边播'
+    return task.noPeers ? '暂无可用节点' : '正在寻找节点'
+  }
   if (task?.policy?.phase === 'downloading') return task.noPeers ? '等待可用节点' : '正在下载'
   if (task?.policy?.phase === 'paused') return '已暂停'
   if (task?.policy?.phase === 'complete') return '下载完成'

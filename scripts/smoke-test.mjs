@@ -35,6 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
+assert.match(packageJson.version, /^\d+\.\d+\.\d+$/)
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))

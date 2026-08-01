@@ -10,6 +10,11 @@ import {
   guideForPlatform,
   shouldShowOnboarding
 } from './onboarding.mjs'
+import {
+  mediaCompatibilityNotice,
+  playbackHealth,
+  requestMediaPlayback
+} from './playback-health.mjs'
 
 const api = window.seedstream
 const elements = {
@@ -34,10 +39,13 @@ const elements = {
   metricPeers: document.querySelector('#metricPeers'),
   metricEta: document.querySelector('#metricEta'),
   playerPanel: document.querySelector('#playerPanel'),
+  playerEyebrow: document.querySelector('#playerEyebrow'),
   playerTitle: document.querySelector('#playerTitle'),
   playerStatus: document.querySelector('#playerStatus'),
+  retryPlayerButton: document.querySelector('#retryPlayerButton'),
   closePlayerButton: document.querySelector('#closePlayerButton'),
   videoPlayer: document.querySelector('#videoPlayer'),
+  playerNotice: document.querySelector('#playerNotice'),
   playerError: document.querySelector('#playerError'),
   fileCount: document.querySelector('#fileCount'),
   fileList: document.querySelector('#fileList'),
@@ -250,6 +258,31 @@ function render () {
   renderDetail()
 }
 
+function updatePlaybackDiagnostics () {
+  const playback = viewState.playback
+  if (!playback || playback.mediaState === 'error') return
+  const task = viewState.tasks.find(candidate => candidate.id === playback.taskId)
+  if (!task) return
+
+  const now = Date.now()
+  if (Number.isFinite(task.downloaded) && task.downloaded > playback.lastDownloaded) {
+    playback.lastDownloaded = task.downloaded
+    playback.lastProgressAt = now
+  }
+  const health = playbackHealth({
+    task,
+    elapsedMs: now - playback.startedAt,
+    stalledMs: now - playback.lastProgressAt,
+    mediaState: playback.mediaState
+  })
+  elements.playerPanel.dataset.health = health.kind
+  elements.playerEyebrow.textContent = health.label
+  elements.playerStatus.textContent = health.status
+  elements.retryPlayerButton.hidden = !health.canRetry
+  elements.playerError.textContent = health.detail
+  elements.playerError.hidden = health.detail.length === 0
+}
+
 async function refreshState (silent = false) {
   try {
     const state = await api.getState()
@@ -265,6 +298,7 @@ async function refreshState (silent = false) {
     elements.appStatus.textContent = `本地引擎就绪 · v${state.version}`
     updatePlatformGuide()
     render()
+    updatePlaybackDiagnostics()
   } catch (error) {
     elements.appStatus.textContent = '本地引擎连接异常'
     if (!silent) showToast(errorMessage(error), true)
@@ -293,16 +327,29 @@ async function chooseTorrent () {
 async function startPlayback (task, fileIndex) {
   if (viewState.playback) await closePlayback()
   const playback = await api.playFile(task.id, fileIndex)
-  viewState.playback = playback
+  const now = Date.now()
+  viewState.playback = {
+    ...playback,
+    startedAt: now,
+    lastProgressAt: now,
+    lastDownloaded: 0,
+    mediaState: 'loading'
+  }
   elements.playerPanel.hidden = false
+  elements.playerPanel.dataset.health = 'connecting'
+  elements.playerEyebrow.textContent = 'PEER DISCOVERY'
   elements.playerTitle.textContent = playback.name
-  elements.playerStatus.textContent = '正在连接节点…'
+  elements.playerStatus.textContent = '正在寻找可用节点…'
+  elements.retryPlayerButton.hidden = true
   elements.playerError.hidden = true
   elements.playerError.textContent = ''
+  const compatibilityNotice = mediaCompatibilityNotice(playback.name)
+  elements.playerNotice.textContent = compatibilityNotice
+  elements.playerNotice.hidden = compatibilityNotice.length === 0
   elements.videoPlayer.src = playback.url
   elements.videoPlayer.load()
   elements.playerPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  await elements.videoPlayer.play().catch(() => {})
+  requestMediaPlayback(elements.videoPlayer)
   await refreshState(true)
 }
 
@@ -311,8 +358,15 @@ function closePlayerLocally () {
   elements.videoPlayer.removeAttribute('src')
   elements.videoPlayer.load()
   elements.playerPanel.hidden = true
+  delete elements.playerPanel.dataset.health
+  elements.playerEyebrow.textContent = 'NOW BUFFERING'
   elements.playerTitle.textContent = '—'
+  elements.playerStatus.textContent = '准备播放'
+  elements.retryPlayerButton.hidden = true
+  elements.playerNotice.hidden = true
+  elements.playerNotice.textContent = ''
   elements.playerError.hidden = true
+  elements.playerError.textContent = ''
   viewState.playback = null
 }
 
@@ -321,6 +375,16 @@ async function closePlayback () {
   closePlayerLocally()
   if (playback) await api.closePlayer(playback.taskId)
   await refreshState(true)
+}
+
+async function retryPlayback () {
+  const playback = viewState.playback
+  if (!playback) return
+  const task = viewState.tasks.find(candidate => candidate.id === playback.taskId)
+  if (!task) return closePlayback()
+  const fileIndex = playback.fileIndex
+  await closePlayback()
+  await startPlayback(task, fileIndex)
 }
 
 async function handleTaskAction (action, fileIndex) {
@@ -417,22 +481,32 @@ elements.fileList.addEventListener('click', event => {
 })
 
 elements.closePlayerButton.addEventListener('click', () => withBusy(closePlayback))
+elements.retryPlayerButton.addEventListener('click', () => withBusy(retryPlayback))
 
 elements.videoPlayer.addEventListener('waiting', () => {
-  elements.playerStatus.textContent = '正在缓冲分片…'
+  if (!viewState.playback) return
+  viewState.playback.mediaState = 'waiting'
+  updatePlaybackDiagnostics()
 })
 elements.videoPlayer.addEventListener('playing', () => {
-  elements.playerStatus.textContent = '边下边播'
+  if (!viewState.playback) return
+  viewState.playback.mediaState = 'playing'
+  updatePlaybackDiagnostics()
 })
 elements.videoPlayer.addEventListener('canplay', () => {
-  elements.playerStatus.textContent = '可以播放'
+  if (!viewState.playback) return
+  viewState.playback.mediaState = 'ready'
+  updatePlaybackDiagnostics()
 })
 elements.videoPlayer.addEventListener('error', () => {
+  if (viewState.playback) viewState.playback.mediaState = 'error'
   const code = elements.videoPlayer.error?.code
   const message = code === MediaError.MEDIA_ERR_DECODE || code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
     ? '当前视频编码无法由内置播放器解码。你仍然可以完整下载后使用其他播放器打开。'
     : '视频流暂时不可用，请检查节点连接后重试。'
   elements.playerStatus.textContent = '播放失败'
+  elements.playerEyebrow.textContent = 'PLAYBACK ERROR'
+  elements.retryPlayerButton.hidden = code === MediaError.MEDIA_ERR_DECODE || code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
   elements.playerError.textContent = message
   elements.playerError.hidden = false
 })

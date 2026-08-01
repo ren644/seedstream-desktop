@@ -58,7 +58,7 @@
           <h1>SEED<span>/</span>STREAM</h1>
           <p class="hero-copy">本指南可以离线打开。第一次安装先看对应系统的说明，进入应用后只需三步：打开种子、选择视频、播放或下载。</p>
         </div>
-        <span class="version">使用指南 · v0.1</span>
+        <span class="version">使用指南 · v0.1.1</span>
       </header>
 
       <nav aria-label="指南目录">
@@ -129,7 +129,7 @@
         <p class="section-kicker">05 / TROUBLESHOOTING</p>
         <h2>常见状况</h2>
         <dl class="trouble">
-          <div><dt>一直显示“等待可用节点”</dt><dd>该种子当前没有在线节点，或者网络限制了 P2P 连接。SeedStream 不能凭空生成不存在的内容；可以稍后重试或更换合法来源。</dd></div>
+          <div><dt>显示“没有可用节点”</dt><dd>应用等待约 10–12 秒仍未找到数据来源。可以点击播放器中的“重新连接”，检查防火墙或稍后再试；如果节点仍为 0，只能更换一个有做种者的合法来源。SeedStream 不能凭空生成不存在的内容。</dd></div>
           <div><dt>能下载但视频不能播放</dt><dd>内置播放器受 Chromium 编解码器限制。H.265、DTS、AC3 和部分 MKV/AVI 组合可能不兼容；可完整下载后用 VLC、IINA 等播放器打开。</dd></div>
           <div><dt>拖入文件没有反应</dt><dd>确认扩展名是 `.torrent`，不是网页、压缩包、磁力链接文本或伪装文件。当前版本不接受 magnet 链接。</dd></div>
           <div><dt>下载占用磁盘太多</dt><dd>先检查左侧显示的永久下载目录。关闭播放器只会清临时缓存，不会删除永久下载；永久文件需要你在 Finder 或资源管理器中自行管理。</dd></div>

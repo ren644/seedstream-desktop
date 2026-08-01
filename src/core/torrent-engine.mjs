@@ -10,6 +10,7 @@ import { ACTION, initialTaskPolicy, transitionTask } from './task-policy.mjs'
 
 const MAX_TORRENT_BYTES = 10 * 1024 * 1024
 const MAX_TORRENT_FILES = 10_000
+const NO_PEERS_INTERVAL_SECONDS = 10
 const INFO_HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i
 
 export class TorrentEngineError extends Error {
@@ -422,7 +423,11 @@ export class TorrentEngine extends EventEmitter {
       const onError = error => finish(error)
 
       try {
-        torrent = this.client.add(task.torrentBuffer, options, readyTorrent => finish(null, readyTorrent))
+        task.noPeers = false
+        torrent = this.client.add(task.torrentBuffer, {
+          noPeersIntervalTime: NO_PEERS_INTERVAL_SECONDS,
+          ...options
+        }, readyTorrent => finish(null, readyTorrent))
         torrent.once?.('error', onError)
       } catch (error) {
         finish(error)
@@ -461,6 +466,7 @@ export class TorrentEngine extends EventEmitter {
       callback
     ))
     task.activeTorrent = null
+    task.noPeers = false
   }
 
   async #writeMetadata (targetPath, buffer) {
