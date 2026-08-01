@@ -17,6 +17,7 @@ import { TorrentEngine } from './core/torrent-engine.mjs'
 import {
   CHANNELS,
   assertFileIndex,
+  assertFullscreenValue,
   assertSourceName,
   assertTaskId,
   assertTorrentBytes,
@@ -38,6 +39,7 @@ let downloadPath = null
 let persistenceChain = Promise.resolve()
 let shutdownStarted = false
 let shutdownFinished = false
+let videoFullscreenActive = false
 
 app.setName('SeedStream')
 app.setPath(
@@ -76,8 +78,19 @@ function rendererState () {
   return {
     platform: process.platform,
     version: app.getVersion(),
+    windowMaximized: mainWindow?.isMaximized() ?? false,
+    videoFullscreen: videoFullscreenActive,
     downloadPath,
     tasks: engine?.listTasks().map(rendererTask) ?? []
+  }
+}
+
+function applyVideoFullscreen (fullscreen) {
+  videoFullscreenActive = fullscreen
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.setFullScreen(fullscreen)
+  if (!mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send(CHANNELS.VIDEO_FULLSCREEN_CHANGED, { fullscreen })
   }
 }
 
@@ -147,6 +160,27 @@ function sendNativeOpen (payload) {
 
 function registerIpcHandlers () {
   registerHandler(CHANNELS.GET_STATE, async () => rendererState())
+  registerHandler(CHANNELS.TOGGLE_WINDOW_MAXIMIZE, async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      const error = new Error('The SeedStream window is unavailable')
+      error.code = 'WINDOW_UNAVAILABLE'
+      throw error
+    }
+    const maximized = !mainWindow.isMaximized()
+    if (maximized) mainWindow.maximize()
+    else mainWindow.unmaximize()
+    return { maximized }
+  })
+  registerHandler(CHANNELS.SET_VIDEO_FULLSCREEN, async fullscreenValue => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      const error = new Error('The SeedStream window is unavailable')
+      error.code = 'WINDOW_UNAVAILABLE'
+      throw error
+    }
+    const fullscreen = assertFullscreenValue(fullscreenValue)
+    applyVideoFullscreen(fullscreen)
+    return { fullscreen }
+  })
   registerHandler(CHANNELS.OPEN_GUIDE, async () => {
     const guidePath = app.isPackaged
       ? path.join(process.resourcesPath, 'help', guideFileName)
@@ -244,6 +278,19 @@ function createWindow () {
   })
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (videoFullscreenActive && input.type === 'keyDown' && (input.key === 'Escape' || input.code === 'Escape')) {
+      event.preventDefault()
+      applyVideoFullscreen(false)
+    }
+  })
+  mainWindow.on('leave-full-screen', () => {
+    if (!videoFullscreenActive) return
+    videoFullscreenActive = false
+    if (!mainWindow?.webContents.isDestroyed()) {
+      mainWindow.webContents.send(CHANNELS.VIDEO_FULLSCREEN_CHANGED, { fullscreen: false })
+    }
+  })
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
   mainWindow.webContents.on('will-attach-webview', event => event.preventDefault())
   if (!smokeMode) mainWindow.once('ready-to-show', () => mainWindow?.show())
@@ -253,16 +300,18 @@ function createWindow () {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
           return {
-            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function',
+            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
             help: Boolean(document.querySelector('#helpButton')),
+            windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
+            playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,
             guidePlatform: document.querySelector('#guidePlatform')?.textContent,
             taskCount: state.tasks.length,
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)
@@ -274,6 +323,7 @@ function createWindow () {
     })
   }
   mainWindow.on('closed', () => {
+    videoFullscreenActive = false
     mainWindow = null
     cleanupOpenPlayers().catch(() => {})
   })

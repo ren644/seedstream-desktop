@@ -15,10 +15,15 @@ import {
   playbackHealth,
   requestMediaPlayback
 } from './playback-health.mjs'
+import {
+  fullscreenButtonLabel,
+  maximizeButtonLabel
+} from './fullscreen-controls.mjs'
 
 const api = window.seedstream
 const elements = {
   appStatus: document.querySelector('#appStatus'),
+  windowMaximizeButton: document.querySelector('#windowMaximizeButton'),
   helpButton: document.querySelector('#helpButton'),
   dropZone: document.querySelector('#dropZone'),
   openTorrentButton: document.querySelector('#openTorrentButton'),
@@ -43,6 +48,7 @@ const elements = {
   playerTitle: document.querySelector('#playerTitle'),
   playerStatus: document.querySelector('#playerStatus'),
   retryPlayerButton: document.querySelector('#retryPlayerButton'),
+  fullscreenPlayerButton: document.querySelector('#fullscreenPlayerButton'),
   closePlayerButton: document.querySelector('#closePlayerButton'),
   videoPlayer: document.querySelector('#videoPlayer'),
   playerNotice: document.querySelector('#playerNotice'),
@@ -65,11 +71,14 @@ const viewState = {
   selectedTaskId: null,
   platform: '',
   downloadPath: '',
+  windowMaximized: false,
+  videoFullscreen: false,
   playback: null,
   busy: false,
   pollTimer: null,
   toastTimer: null,
   removeNativeListener: null,
+  removeFullscreenListener: null,
   onboardingFocus: null
 }
 
@@ -102,6 +111,22 @@ function showToast (message, isError = false) {
   }, 4200)
 }
 
+function updateWindowMaximizeControl () {
+  elements.windowMaximizeButton.textContent = maximizeButtonLabel(viewState.windowMaximized)
+  elements.windowMaximizeButton.setAttribute('aria-pressed', String(viewState.windowMaximized))
+}
+
+function isVideoFullscreen () {
+  return viewState.videoFullscreen
+}
+
+function updateFullscreenControl () {
+  const fullscreen = isVideoFullscreen()
+  document.body.classList.toggle('is-video-fullscreen', fullscreen)
+  elements.fullscreenPlayerButton.textContent = fullscreenButtonLabel(fullscreen)
+  elements.fullscreenPlayerButton.setAttribute('aria-pressed', String(fullscreen))
+}
+
 function updatePlatformGuide () {
   const guide = guideForPlatform(viewState.platform)
   elements.guidePlatform.textContent = guide.label
@@ -132,6 +157,8 @@ function errorMessage (error) {
     LOCAL_FILE_INCOMPLETE: '本地视频文件不完整或已被修改，请重新下载。',
     LOCAL_FILE_UNAVAILABLE: '这个任务还没有可供本地播放的完整视频。',
     SYSTEM_OPEN_FAILED: '系统没有找到能打开这个视频的应用，请安装 VLC 或 IINA 后重试。',
+    FULLSCREEN_UNAVAILABLE: '当前系统无法进入视频全屏，请尝试双击视频或使用窗口最大化。',
+    WINDOW_UNAVAILABLE: '当前软件窗口暂时无法最大化，请稍后重试。',
     TASK_NOT_FOUND: '任务已不存在，请刷新后重试。'
   }
   return byCode[error?.code] ?? error?.message ?? '操作失败，请稍后重试。'
@@ -309,6 +336,8 @@ async function refreshState (silent = false) {
     viewState.tasks = state.tasks
     viewState.platform = state.platform
     viewState.downloadPath = state.downloadPath
+    viewState.windowMaximized = Boolean(state.windowMaximized)
+    viewState.videoFullscreen = Boolean(state.videoFullscreen)
     if (!viewState.selectedTaskId || !viewState.tasks.some(task => task.id === viewState.selectedTaskId)) {
       viewState.selectedTaskId = viewState.tasks.at(-1)?.id ?? null
     }
@@ -316,6 +345,8 @@ async function refreshState (silent = false) {
       closePlayerLocally()
     }
     elements.appStatus.textContent = `本地引擎就绪 · v${state.version}`
+    updateWindowMaximizeControl()
+    updateFullscreenControl()
     updatePlatformGuide()
     render()
     updatePlaybackDiagnostics()
@@ -375,6 +406,11 @@ async function startPlayback (task, fileIndex) {
 }
 
 function closePlayerLocally () {
+  if (viewState.videoFullscreen) {
+    viewState.videoFullscreen = false
+    updateFullscreenControl()
+    api.setVideoFullscreen(false).catch(() => {})
+  }
   elements.videoPlayer.pause()
   elements.videoPlayer.removeAttribute('src')
   elements.videoPlayer.load()
@@ -406,6 +442,12 @@ async function retryPlayback () {
   const fileIndex = playback.fileIndex
   await closePlayback()
   await startPlayback(task, fileIndex)
+}
+
+async function togglePlayerFullscreen () {
+  const result = await api.setVideoFullscreen(!viewState.videoFullscreen)
+  viewState.videoFullscreen = Boolean(result?.fullscreen)
+  updateFullscreenControl()
 }
 
 async function handleTaskAction (action, fileIndex) {
@@ -449,6 +491,11 @@ async function handleTaskAction (action, fileIndex) {
 }
 
 elements.openTorrentButton.addEventListener('click', () => withBusy(chooseTorrent))
+elements.windowMaximizeButton.addEventListener('click', () => withBusy(async () => {
+  const state = await api.toggleWindowMaximize()
+  viewState.windowMaximized = Boolean(state?.maximized)
+  updateWindowMaximizeControl()
+}))
 elements.helpButton.addEventListener('click', showOnboarding)
 elements.dismissOnboardingButton.addEventListener('click', hideOnboarding)
 elements.completeOnboardingButton.addEventListener('click', () => {
@@ -464,6 +511,10 @@ elements.onboardingBackdrop.addEventListener('click', event => {
 })
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && !elements.onboardingBackdrop.hidden) hideOnboarding()
+  else if (event.key === 'Escape' && viewState.videoFullscreen) {
+    event.preventDefault()
+    togglePlayerFullscreen().catch(error => showToast(errorMessage(error), true))
+  }
 })
 elements.dropZone.addEventListener('keydown', event => {
   if (event.target === elements.openTorrentButton) return
@@ -518,6 +569,13 @@ elements.fileList.addEventListener('click', event => {
 
 elements.closePlayerButton.addEventListener('click', () => withBusy(closePlayback))
 elements.retryPlayerButton.addEventListener('click', () => withBusy(retryPlayback))
+elements.fullscreenPlayerButton.addEventListener('click', () => {
+  togglePlayerFullscreen().catch(error => showToast(errorMessage(error), true))
+})
+elements.videoPlayer.addEventListener('dblclick', event => {
+  event.preventDefault()
+  togglePlayerFullscreen().catch(error => showToast(errorMessage(error), true))
+})
 
 elements.videoPlayer.addEventListener('waiting', () => {
   if (!viewState.playback) return
@@ -561,9 +619,15 @@ viewState.removeNativeListener = api.onNativeOpened(payload => {
   }
 })
 
+viewState.removeFullscreenListener = api.onVideoFullscreenChanged(payload => {
+  viewState.videoFullscreen = Boolean(payload?.fullscreen)
+  updateFullscreenControl()
+})
+
 window.addEventListener('beforeunload', () => {
   clearInterval(viewState.pollTimer)
   viewState.removeNativeListener?.()
+  viewState.removeFullscreenListener?.()
   if (viewState.playback) api.closePlayer(viewState.playback.taskId).catch(() => {})
 })
 

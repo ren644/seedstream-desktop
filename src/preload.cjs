@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron')
 const CHANNELS = Object.freeze({
   GET_STATE: 'seedstream:app:get-state',
   OPEN_GUIDE: 'seedstream:app:open-guide',
+  TOGGLE_WINDOW_MAXIMIZE: 'seedstream:window:toggle-maximize',
+  SET_VIDEO_FULLSCREEN: 'seedstream:window:set-video-fullscreen',
+  VIDEO_FULLSCREEN_CHANGED: 'seedstream:event:video-fullscreen-changed',
   CHOOSE_TORRENT: 'seedstream:torrent:choose',
   IMPORT_TORRENT_BYTES: 'seedstream:torrent:import-bytes',
   START_DOWNLOAD: 'seedstream:torrent:start-download',
@@ -30,6 +33,8 @@ async function invoke (channel, ...args) {
 contextBridge.exposeInMainWorld('seedstream', Object.freeze({
   getState: () => invoke(CHANNELS.GET_STATE),
   openGuide: () => invoke(CHANNELS.OPEN_GUIDE),
+  toggleWindowMaximize: () => invoke(CHANNELS.TOGGLE_WINDOW_MAXIMIZE),
+  setVideoFullscreen: fullscreen => invoke(CHANNELS.SET_VIDEO_FULLSCREEN, fullscreen),
   chooseTorrent: () => invoke(CHANNELS.CHOOSE_TORRENT),
   importTorrentBytes: (bytes, sourceName) => invoke(CHANNELS.IMPORT_TORRENT_BYTES, bytes, sourceName),
   startDownload: taskId => invoke(CHANNELS.START_DOWNLOAD, taskId),
@@ -41,6 +46,12 @@ contextBridge.exposeInMainWorld('seedstream', Object.freeze({
   remove: taskId => invoke(CHANNELS.REMOVE, taskId),
   reveal: taskId => invoke(CHANNELS.REVEAL, taskId),
   chooseDownloadPath: () => invoke(CHANNELS.CHOOSE_DOWNLOAD_PATH),
+  onVideoFullscreenChanged: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on(CHANNELS.VIDEO_FULLSCREEN_CHANGED, listener)
+    return () => ipcRenderer.removeListener(CHANNELS.VIDEO_FULLSCREEN_CHANGED, listener)
+  },
   onNativeOpened: callback => {
     if (typeof callback !== 'function') return () => {}
     const listener = (_event, payload) => callback(payload)

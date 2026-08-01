@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import {
   CHANNELS,
   assertFileIndex,
+  assertFullscreenValue,
   assertTaskId,
   assertTorrentBytes,
   extractTorrentPath,
@@ -17,6 +18,17 @@ test('defines unique IPC channel names', () => {
   assert.equal(new Set(values).size, values.length)
   assert.ok(values.every(value => value.startsWith('seedstream:')))
   assert.equal(CHANNELS.OPEN_GUIDE, 'seedstream:app:open-guide')
+  assert.equal(CHANNELS.TOGGLE_WINDOW_MAXIMIZE, 'seedstream:window:toggle-maximize')
+  assert.equal(CHANNELS.SET_VIDEO_FULLSCREEN, 'seedstream:window:set-video-fullscreen')
+  assert.equal(CHANNELS.VIDEO_FULLSCREEN_CHANGED, 'seedstream:event:video-fullscreen-changed')
+})
+
+test('requires an explicit boolean for privileged video fullscreen changes', () => {
+  assert.equal(assertFullscreenValue(true), true)
+  assert.equal(assertFullscreenValue(false), false)
+  for (const value of [null, 0, 'true', {}]) {
+    assert.throws(() => assertFullscreenValue(value), /boolean fullscreen/i)
+  }
 })
 
 test('validates task ids and file indexes before privileged operations', () => {

@@ -15,6 +15,10 @@ import {
   playbackHealth,
   requestMediaPlayback
 } from '../src/renderer/playback-health.mjs'
+import {
+  fullscreenButtonLabel,
+  maximizeButtonLabel
+} from '../src/renderer/fullscreen-controls.mjs'
 
 test('formats byte sizes and transfer speeds for compact task cards', () => {
   assert.equal(formatBytes(0), '0 B')
@@ -105,4 +109,11 @@ test('does not lock the UI while the browser waits indefinitely for media data',
 
   assert.equal(playCalled, true)
   assert.equal(result, undefined)
+})
+
+test('labels video fullscreen and window maximize controls honestly', () => {
+  assert.equal(fullscreenButtonLabel(false), '全屏播放')
+  assert.equal(fullscreenButtonLabel(true), '退出全屏')
+  assert.equal(maximizeButtonLabel(false), '窗口最大化')
+  assert.equal(maximizeButtonLabel(true), '还原窗口')
 })

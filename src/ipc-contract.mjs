@@ -7,6 +7,9 @@ const TASK_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i
 export const CHANNELS = Object.freeze({
   GET_STATE: 'seedstream:app:get-state',
   OPEN_GUIDE: 'seedstream:app:open-guide',
+  TOGGLE_WINDOW_MAXIMIZE: 'seedstream:window:toggle-maximize',
+  SET_VIDEO_FULLSCREEN: 'seedstream:window:set-video-fullscreen',
+  VIDEO_FULLSCREEN_CHANGED: 'seedstream:event:video-fullscreen-changed',
   CHOOSE_TORRENT: 'seedstream:torrent:choose',
   IMPORT_TORRENT_BYTES: 'seedstream:torrent:import-bytes',
   START_DOWNLOAD: 'seedstream:torrent:start-download',
@@ -20,6 +23,13 @@ export const CHANNELS = Object.freeze({
   CHOOSE_DOWNLOAD_PATH: 'seedstream:settings:choose-download-path',
   NATIVE_OPENED: 'seedstream:event:native-opened'
 })
+
+export function assertFullscreenValue (value) {
+  if (typeof value !== 'boolean') {
+    throw new TypeError('A boolean fullscreen value is required')
+  }
+  return value
+}
 
 export function assertTaskId (value) {
   if (typeof value !== 'string' || !TASK_ID.test(value)) {

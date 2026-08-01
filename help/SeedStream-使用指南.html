@@ -58,7 +58,7 @@
           <h1>SEED<span>/</span>STREAM</h1>
           <p class="hero-copy">本指南可以离线打开。第一次安装先看对应系统的说明，进入应用后只需三步：打开种子、选择视频、播放或下载。</p>
         </div>
-        <span class="version">使用指南 · v0.1.2</span>
+        <span class="version">使用指南 · v0.1.3</span>
       </header>
 
       <nav aria-label="指南目录">
@@ -70,7 +70,7 @@
         <h2>三步就能开始</h2>
         <div class="steps">
           <article class="card"><span class="step-number">STEP 01</span><h3>打开 `.torrent`</h3><p>点击“打开种子”，或者把 `.torrent` 文件拖入左侧区域。它只是任务清单，不是视频本身。</p></article>
-          <article class="card"><span class="step-number">STEP 02</span><h3>选择视频播放</h3><p>解析完成后，在视频文件右侧点击“播放”。有可用节点时会自动边缓冲边播放。</p></article>
+          <article class="card"><span class="step-number">STEP 02</span><h3>选择视频播放</h3><p>解析完成后，在视频文件右侧点击“播放”。有可用节点时会自动边缓冲边播放。点击播放器右上角“全屏播放”或双击视频即可全屏。</p></article>
           <article class="card"><span class="step-number">STEP 03</span><h3>需要保留再下载</h3><p>点击“下载全部”保存到永久目录；下载完成后可继续点击“播放视频”，直接在应用内本地观看。</p></article>
         </div>
       </section>
@@ -122,6 +122,7 @@
           <article class="card"><h3>在线播放</h3><p>播放器会按观看位置取得种子分片，并写入应用专用临时缓存。关闭播放器、关闭 Windows 窗口退出，或退出 macOS 应用时会清理；异常退出留下的缓存会在下次启动清除。</p></article>
           <article class="card"><h3>永久下载</h3><p>点击“下载全部”后，文件进入显示的下载目录，可以暂停和继续。下载完成后可直接使用内置播放器本地观看；此时不再依赖节点。遇到不兼容编码可点“系统打开”。移除任务记录不会删除已经永久下载的文件。</p></article>
         </div>
+        <p class="safe">画面大小：播放器的“全屏播放”或双击视频只让视频占满屏幕；应用顶部的“窗口最大化”用于放大整个软件窗口，再点“还原窗口”恢复。按 Esc 可以退出视频全屏。</p>
         <p class="warning">BitTorrent 在下载时也可能上传已经取得的分片。请只下载或分享你有权获取的内容。</p>
       </section>
 
@@ -131,6 +132,7 @@
         <dl class="trouble">
           <div><dt>显示“没有可用节点”</dt><dd>应用等待约 10–12 秒仍未找到数据来源。可以点击播放器中的“重新连接”，检查防火墙或稍后再试；如果节点仍为 0，只能更换一个有做种者的合法来源。SeedStream 不能凭空生成不存在的内容。</dd></div>
           <div><dt>能下载但视频不能播放</dt><dd>内置播放器受 Chromium 编解码器限制。H.265、DTS、AC3 和部分 MKV/AVI 组合可能不兼容；下载完成后点击“系统打开”，可交给 VLC、IINA 等播放器处理。</dd></div>
+          <div><dt>视频或软件窗口怎么放大</dt><dd>看视频时点击播放器右上角“全屏播放”，也可以双击视频；按 Esc、再次双击或点击“退出全屏”返回。要放大整个软件，请点击应用顶部“窗口最大化”，再点一次即可还原。</dd></div>
           <div><dt>拖入文件没有反应</dt><dd>确认扩展名是 `.torrent`，不是网页、压缩包、磁力链接文本或伪装文件。当前版本不接受 magnet 链接。</dd></div>
           <div><dt>下载占用磁盘太多</dt><dd>先检查左侧显示的永久下载目录。关闭播放器只会清临时缓存，不会删除永久下载；永久文件需要你在 Finder 或资源管理器中自行管理。</dd></div>
           <div><dt>关闭 macOS 窗口后应用还在</dt><dd>这是 macOS 的标准行为。播放器会关闭并清理临时缓存；要完全退出请按 ⌘Q，或从菜单选择“退出 SeedStream”。</dd></div>
