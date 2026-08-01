@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeedStream 使用指南</title>
+    <style>
+      :root { color-scheme: dark; --bg:#0b0f12; --panel:#141c20; --line:#304047; --ink:#edf0ea; --muted:#9ba8a8; --orange:#ff824f; --mint:#9be8c0; --warn:#f2c36e; }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at 80% 0, #203338 0, transparent 32%),linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),var(--bg); background-size:auto,32px 32px,auto; font-family:"Hiragino Sans GB","Microsoft YaHei UI",sans-serif; line-height:1.75; }
+      a { color:inherit; }
+      .page { width:min(1080px,calc(100% - 36px)); margin:auto; padding:54px 0 80px; }
+      .hero { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:32px; align-items:end; padding-bottom:36px; border-bottom:1px solid var(--line); }
+      .kicker,.section-kicker { margin:0; color:var(--orange); font-size:11px; font-weight:800; letter-spacing:.18em; }
+      h1 { margin:8px 0 12px; font-size:clamp(48px,9vw,96px); line-height:.9; letter-spacing:-.06em; }
+      h1 span { color:var(--orange); }
+      .hero-copy { max-width:650px; margin:0; color:var(--muted); font-size:16px; }
+      .version { padding:10px 14px; border:1px solid var(--line); border-radius:999px; color:var(--mint); font-size:12px; white-space:nowrap; }
+      nav { position:sticky; top:0; z-index:2; display:flex; gap:8px; margin:0 -12px; padding:14px 12px; overflow-x:auto; background:rgba(11,15,18,.88); backdrop-filter:blur(14px); }
+      nav a { padding:8px 12px; border:1px solid var(--line); border-radius:999px; text-decoration:none; white-space:nowrap; font-size:12px; }
+      nav a:hover { border-color:var(--orange); }
+      section { scroll-margin-top:78px; margin-top:54px; }
+      h2 { margin:6px 0 20px; font-size:clamp(28px,4vw,42px); line-height:1.1; }
+      h3 { margin:0 0 8px; font-size:17px; }
+      p { margin:0; }
+      .steps,.systems,.trouble { display:grid; gap:12px; }
+      .steps { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .systems { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .card { padding:22px; border:1px solid var(--line); border-radius:12px; background:rgba(20,28,32,.88); box-shadow:0 18px 50px rgba(0,0,0,.14); }
+      .step-number { display:block; margin-bottom:34px; color:var(--orange); font-size:12px; font-weight:900; letter-spacing:.12em; }
+      .card p,.card li,.trouble dd { color:var(--muted); font-size:13px; }
+      .card ol,.card ul { margin:12px 0 0; padding-left:20px; }
+      .card li + li { margin-top:8px; }
+      .system-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+      .pill { padding:5px 9px; border:1px solid rgba(155,232,192,.36); border-radius:999px; color:var(--mint); font-size:10px; }
+      .warning { margin-top:14px; padding:14px; border-left:3px solid var(--warn); color:var(--muted); background:rgba(242,195,110,.07); font-size:12px; }
+      .safe { margin-top:14px; padding:14px; border:1px solid rgba(155,232,192,.25); border-radius:8px; color:var(--muted); background:rgba(155,232,192,.06); font-size:12px; }
+      .choice { display:grid; grid-template-columns:120px minmax(0,1fr); gap:12px; align-items:start; padding:13px 0; border-top:1px solid var(--line); }
+      .choice:first-of-type { border-top:0; }
+      .choice strong { color:var(--orange); font-size:12px; }
+      .choice p { font-size:12px; }
+      .trouble { margin:0; }
+      .trouble > div { display:grid; grid-template-columns:minmax(180px,.7fr) minmax(0,1.6fr); gap:24px; padding:18px 0; border-top:1px solid var(--line); }
+      .trouble dt { font-weight:800; }
+      .trouble dd { margin:0; }
+      code { padding:2px 6px; border:1px solid var(--line); border-radius:5px; color:var(--mint); background:#0c1114; }
+      footer { margin-top:60px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+      @media (max-width:760px) { .hero,.steps,.systems { grid-template-columns:1fr; } .version { justify-self:start; } .trouble > div { grid-template-columns:1fr; gap:6px; } .choice { grid-template-columns:1fr; gap:4px; } }
+      @media print { :root { color-scheme:light; --bg:#fff; --panel:#fff; --line:#bbb; --ink:#111; --muted:#444; } body { background:#fff; } nav { display:none; } .page { width:100%; padding:0; } section { break-inside:avoid; } }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="kicker">OFFLINE QUICK START</p>
+          <h1>SEED<span>/</span>STREAM</h1>
+          <p class="hero-copy">本指南可以离线打开。第一次安装先看对应系统的说明，进入应用后只需三步：打开种子、选择视频、播放或下载。</p>
+        </div>
+        <span class="version">使用指南 · v0.1</span>
+      </header>
+
+      <nav aria-label="指南目录">
+        <a href="#quick">三步上手</a><a href="#systems">安装与拦截</a><a href="#choose">该选哪个包</a><a href="#cache">播放与缓存</a><a href="#trouble">常见问题</a>
+      </nav>
+
+      <section id="quick">
+        <p class="section-kicker">01 / QUICK START</p>
+        <h2>三步就能开始</h2>
+        <div class="steps">
+          <article class="card"><span class="step-number">STEP 01</span><h3>打开 `.torrent`</h3><p>点击“打开种子”，或者把 `.torrent` 文件拖入左侧区域。它只是任务清单，不是视频本身。</p></article>
+          <article class="card"><span class="step-number">STEP 02</span><h3>选择视频播放</h3><p>解析完成后，在视频文件右侧点击“播放”。有可用节点时会自动边缓冲边播放。</p></article>
+          <article class="card"><span class="step-number">STEP 03</span><h3>需要保留再下载</h3><p>点击“下载全部”保存到永久目录；只观看时，关闭播放器或退出应用会清除临时视频缓存。</p></article>
+        </div>
+      </section>
+
+      <section id="systems">
+        <p class="section-kicker">02 / FIRST LAUNCH</p>
+        <h2>安装与系统拦截</h2>
+        <div class="systems">
+          <article class="card">
+            <div class="system-title"><h3>macOS · Apple Silicon</h3><span class="pill">DMG 推荐</span></div>
+            <ol>
+              <li>打开 DMG，把 <strong>SeedStream</strong> 拖到 <strong>Applications / 应用程序</strong>。</li>
+              <li>第一次启动时，在“应用程序”里右键 SeedStream，选择“打开”。</li>
+              <li>若仍被拦截：打开“系统设置 → 隐私与安全”，在安全区域选择“仍要打开”，再按系统提示确认。</li>
+              <li>成功打开一次后，以后可以像普通应用一样从 Dock 或“应用程序”启动。</li>
+            </ol>
+            <p class="warning">不要运行关闭 Gatekeeper 的命令，也不要移除整台电脑的安全策略。本构建未做 Apple 公证，所以无法完全消除首次提示。</p>
+          </article>
+
+          <article class="card">
+            <div class="system-title"><h3>Windows · x64</h3><span class="pill">Setup / Portable</span></div>
+            <ol>
+              <li>安装版：双击 <strong>setup.exe</strong>，确认一次 UAC 后会自动安装、建立快捷方式并启动。</li>
+              <li>便携版：双击 <strong>portable.exe</strong> 即可，不安装、不注册 `.torrent` 文件关联。</li>
+              <li>若 SmartScreen 提示未知发布者，先确认文件来源及 SHA-256，再点“更多信息 → 仍要运行”。</li>
+              <li>若防火墙询问网络访问，只在你信任的专用网络允许；拒绝也不会影响应用打开，但可能减少可连接节点。</li>
+            </ol>
+            <p class="warning">不要关闭 Defender 或杀毒软件。当前构建未使用 Windows 代码签名证书，因此 SmartScreen 可能显示未知发布者。</p>
+          </article>
+        </div>
+        <p class="safe">安全确认原则：只从你信任的来源获取安装包，并用同目录的 <code>SHA256SUMS.txt</code> 核对完整性。文件名或校验值不一致时不要继续运行。</p>
+      </section>
+
+      <section id="choose">
+        <p class="section-kicker">03 / PICK A BUILD</p>
+        <h2>我该打开哪个文件？</h2>
+        <article class="card">
+          <div class="choice"><strong>macOS DMG</strong><p>Apple Silicon Mac 推荐。拖入“应用程序”后长期使用。</p></div>
+          <div class="choice"><strong>macOS ZIP</strong><p>DMG 无法打开时的备用包，解压后把应用移动到“应用程序”。</p></div>
+          <div class="choice"><strong>Windows Setup</strong><p>推荐给个人电脑：自动安装、创建快捷方式，并注册双击 `.torrent` 打开。</p></div>
+          <div class="choice"><strong>Windows Portable</strong><p>没有管理员权限、不想安装或临时使用时选择；双击直接运行。</p></div>
+        </article>
+      </section>
+
+      <section id="cache">
+        <p class="section-kicker">04 / CACHE & DOWNLOADS</p>
+        <h2>“在线播放”仍会临时下载</h2>
+        <div class="systems">
+          <article class="card"><h3>在线播放</h3><p>播放器会按观看位置取得种子分片，并写入应用专用临时缓存。关闭播放器、关闭 Windows 窗口退出，或退出 macOS 应用时会清理；异常退出留下的缓存会在下次启动清除。</p></article>
+          <article class="card"><h3>永久下载</h3><p>点击“下载全部”后，文件进入显示的下载目录，可以暂停和继续。移除任务记录不会删除已经永久下载的文件。</p></article>
+        </div>
+        <p class="warning">BitTorrent 在下载时也可能上传已经取得的分片。请只下载或分享你有权获取的内容。</p>
+      </section>
+
+      <section id="trouble">
+        <p class="section-kicker">05 / TROUBLESHOOTING</p>
+        <h2>常见状况</h2>
+        <dl class="trouble">
+          <div><dt>一直显示“等待可用节点”</dt><dd>该种子当前没有在线节点，或者网络限制了 P2P 连接。SeedStream 不能凭空生成不存在的内容；可以稍后重试或更换合法来源。</dd></div>
+          <div><dt>能下载但视频不能播放</dt><dd>内置播放器受 Chromium 编解码器限制。H.265、DTS、AC3 和部分 MKV/AVI 组合可能不兼容；可完整下载后用 VLC、IINA 等播放器打开。</dd></div>
+          <div><dt>拖入文件没有反应</dt><dd>确认扩展名是 `.torrent`，不是网页、压缩包、磁力链接文本或伪装文件。当前版本不接受 magnet 链接。</dd></div>
+          <div><dt>下载占用磁盘太多</dt><dd>先检查左侧显示的永久下载目录。关闭播放器只会清临时缓存，不会删除永久下载；永久文件需要你在 Finder 或资源管理器中自行管理。</dd></div>
+          <div><dt>关闭 macOS 窗口后应用还在</dt><dd>这是 macOS 的标准行为。播放器会关闭并清理临时缓存；要完全退出请按 ⌘Q，或从菜单选择“退出 SeedStream”。</dd></div>
+          <div><dt>Windows 双击 `.torrent` 没打开</dt><dd>文件关联只由安装版注册。便携版用户请先打开 SeedStream，再把 `.torrent` 拖进去。</dd></div>
+        </dl>
+      </section>
+
+      <footer>SeedStream 本地离线指南 · 不会上传遥测数据 · 请只处理你有权获取或分享的内容</footer>
+    </main>
+  </body>
+</html>

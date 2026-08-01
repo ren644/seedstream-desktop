@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#172126"/>
+      <stop offset="1" stop-color="#080c0f"/>
+    </linearGradient>
+    <linearGradient id="seed" x1="0.15" y1="0.1" x2="0.85" y2="0.9">
+      <stop offset="0" stop-color="#ff9a62"/>
+      <stop offset="1" stop-color="#ff6338"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="32" stdDeviation="34" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="218" fill="url(#panel)" stroke="#344248" stroke-width="12" filter="url(#shadow)"/>
+  <path d="M160 319H864M160 512H864M160 705H864M319 160V864M512 160V864M705 160V864" stroke="#d5e2df" stroke-opacity="0.055" stroke-width="8"/>
+  <circle cx="512" cy="512" r="306" fill="none" stroke="#9be8c0" stroke-opacity="0.42" stroke-width="12"/>
+  <circle cx="512" cy="512" r="248" fill="url(#seed)" filter="url(#shadow)"/>
+  <path d="M648 356C590 298 438 293 378 372C312 460 403 507 511 532C626 559 701 603 651 685C596 775 427 762 360 692" fill="none" stroke="#10171b" stroke-width="82" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="763" cy="337" r="31" fill="#9be8c0" stroke="#10171b" stroke-width="14"/>
+</svg>

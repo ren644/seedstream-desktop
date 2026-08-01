@@ -1,0 +1,24 @@
+SeedStream 首次打开（30 秒版）
+================================
+
+macOS（Apple Silicon）
+1. 打开 DMG，把 SeedStream 拖到“应用程序”。
+2. 在“应用程序”中右键 SeedStream，选择“打开”。
+3. 如仍被拦截：系统设置 → 隐私与安全 → 仍要打开。
+不要执行关闭 Gatekeeper 的命令。
+
+Windows x64
+1. setup.exe：确认一次 UAC 后自动安装并启动，支持双击 .torrent。
+2. portable.exe：无需安装，双击直接运行，但不注册 .torrent 关联。
+3. SmartScreen 出现时，先核对文件来源和 SHA256SUMS.txt，再选择“更多信息 → 仍要运行”。
+不要关闭 Defender 或杀毒软件。
+
+进入应用后
+1. 打开或拖入 .torrent。
+2. 在视频文件旁点击“播放”。
+3. 需要保留时点击“下载全部”。
+
+关闭播放器或退出应用会清理在线播放的临时视频缓存；永久下载不会被清理。
+BitTorrent 可能同时上传已取得的分片，请只处理你有权获取或分享的内容。
+
+详细说明：打开同目录的 SeedStream-使用指南.html

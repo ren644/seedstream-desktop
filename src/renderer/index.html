@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <title>SeedStream</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-frame">
+      <header class="topbar">
+        <div class="brand" aria-label="SeedStream">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <div>
+            <p class="eyebrow">TORRENT MEDIA DECK</p>
+            <h1>SEED<span>/</span>STREAM</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button id="helpButton" class="help-button" type="button" aria-haspopup="dialog">使用帮助</button>
+          <div class="network-indicator" title="本地应用状态">
+            <span class="signal-dot" aria-hidden="true"></span>
+            <span id="appStatus">本地引擎就绪</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="rail" aria-label="种子任务">
+          <section
+            id="dropZone"
+            class="drop-zone"
+            tabindex="0"
+            role="button"
+            aria-label="打开或拖入 Torrent 种子文件"
+          >
+            <span class="drop-icon" aria-hidden="true">↓</span>
+            <div>
+              <strong>放入 .torrent</strong>
+              <p>解析后再选择播放或下载</p>
+            </div>
+            <button id="openTorrentButton" class="button button-primary" type="button">打开种子</button>
+          </section>
+
+          <section class="destination-card" aria-label="下载目录">
+            <div>
+              <p class="section-label">DOWNLOAD BAY</p>
+              <p id="downloadPath" class="path-value">读取中…</p>
+            </div>
+            <button id="chooseDownloadPathButton" class="icon-button" type="button" aria-label="更改下载目录">⋯</button>
+          </section>
+
+          <div class="rail-heading">
+            <h2>任务</h2>
+            <span id="taskCount">0</span>
+          </div>
+          <div id="taskList" class="task-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="inspector" aria-label="任务详情">
+          <div id="emptyState" class="empty-state">
+            <div class="orbit" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <p class="section-label">NO SIGNAL SELECTED</p>
+            <h2>选一个种子，<br>然后直接观看。</h2>
+            <p>在线播放只缓存当前需要的分片；关闭播放器后会自动清理。</p>
+          </div>
+
+          <div id="taskDetail" class="task-detail" hidden>
+            <header class="detail-header">
+              <div class="detail-title-block">
+                <p id="detailStatus" class="status-chip">等待操作</p>
+                <h2 id="detailName">—</h2>
+                <p id="detailMeta" class="detail-meta">—</p>
+              </div>
+              <div id="taskActions" class="task-actions"></div>
+            </header>
+
+            <div class="transfer-strip">
+              <progress id="detailProgress" max="1" value="0">0%</progress>
+              <span id="detailPercent">0%</span>
+            </div>
+
+            <dl class="metrics" aria-label="传输数据">
+              <div><dt>下行</dt><dd id="metricDown">0 B/s</dd></div>
+              <div><dt>上行</dt><dd id="metricUp">0 B/s</dd></div>
+              <div><dt>节点</dt><dd id="metricPeers">0</dd></div>
+              <div><dt>剩余</dt><dd id="metricEta">—</dd></div>
+            </dl>
+
+            <section id="playerPanel" class="player-panel" hidden aria-label="视频播放器">
+              <div class="player-heading">
+                <div>
+                  <p class="section-label">NOW BUFFERING</p>
+                  <h3 id="playerTitle">—</h3>
+                </div>
+                <div class="player-controls-extra">
+                  <span id="playerStatus" class="player-status">准备播放</span>
+                  <button id="closePlayerButton" class="button button-quiet" type="button">关闭播放</button>
+                </div>
+              </div>
+              <video id="videoPlayer" controls preload="metadata"></video>
+              <p id="playerError" class="inline-error" hidden></p>
+            </section>
+
+            <section class="files-section">
+              <div class="section-heading">
+                <div>
+                  <p class="section-label">TORRENT MANIFEST</p>
+                  <h3>文件清单</h3>
+                </div>
+                <span id="fileCount">0 个文件</span>
+              </div>
+              <div id="fileList" class="file-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="onboardingBackdrop" class="onboarding-backdrop" hidden>
+      <section
+        id="onboardingDialog"
+        class="onboarding-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboardingTitle"
+        aria-describedby="onboardingIntro"
+        tabindex="-1"
+      >
+        <header class="onboarding-header">
+          <div>
+            <p class="section-label">FIRST TRANSMISSION</p>
+            <h2 id="onboardingTitle">三步开始使用</h2>
+            <p id="onboardingIntro">不需要研究复杂设置，先选一个 `.torrent` 文件就可以。</p>
+          </div>
+          <span id="guidePlatform" class="platform-badge">当前系统</span>
+        </header>
+
+        <ol class="onboarding-steps">
+          <li>
+            <span>01</span>
+            <div><strong>打开种子</strong><p>点击“打开种子”，或把 `.torrent` 文件直接拖进左侧区域。</p></div>
+          </li>
+          <li>
+            <span>02</span>
+            <div><strong>直接观看</strong><p>在视频文件右侧点“播放”。等待可用节点后，播放器会边缓冲边播放。</p></div>
+          </li>
+          <li>
+            <span>03</span>
+            <div><strong>需要保留再下载</strong><p>点“下载全部”保存到下载目录；只观看时，关闭播放器会自动清理临时视频缓存。</p></div>
+          </li>
+        </ol>
+
+        <div class="platform-guide">
+          <div class="platform-guide-mark" aria-hidden="true">!</div>
+          <div>
+            <strong id="platformLaunch">首次启动说明</strong>
+            <p id="platformWarning">请确认文件来自可信来源。</p>
+          </div>
+        </div>
+
+        <p class="sharing-notice">BitTorrent 在下载时也可能上传已取得的分片，请只处理你有权获取或分享的内容。</p>
+
+        <footer class="onboarding-actions">
+          <button id="openFullGuideButton" class="button button-quiet" type="button">打开完整指南</button>
+          <button id="dismissOnboardingButton" class="button button-secondary" type="button">稍后再看</button>
+          <button id="completeOnboardingButton" class="button button-primary" type="button">明白了，开始使用</button>
+        </footer>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
