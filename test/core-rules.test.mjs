@@ -110,6 +110,21 @@ test('playing a permanent download reuses it and pause closes playback', () => {
   assert.deepEqual(resumed.effects, ['start-persistent-transfer'])
 })
 
+test('playing and closing a completed download keeps the permanent file state', () => {
+  const complete = {
+    phase: 'complete',
+    storage: 'persistent',
+    playing: false
+  }
+  const playing = transitionTask(complete, ACTION.PLAY)
+  assert.deepEqual(playing.state, { ...complete, playing: true })
+  assert.deepEqual(playing.effects, ['open-player'])
+
+  const closed = transitionTask(playing.state, ACTION.CLOSE_PLAYER)
+  assert.deepEqual(closed.state, complete)
+  assert.deepEqual(closed.effects, ['close-player'])
+})
+
 test('rejects invalid state transitions', () => {
   assert.throws(
     () => transitionTask(initialTaskPolicy(), ACTION.PAUSE),

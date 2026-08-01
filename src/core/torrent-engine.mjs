@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import parseTorrent from 'parse-torrent'
 
 import { assertSafeTorrentFiles } from './path-safety.mjs'
+import { LocalMediaServer } from './local-media-server.mjs'
 import { isPlayableVideo, mediaTypeForName, publicFileSnapshot } from './media.mjs'
 import { ACTION, initialTaskPolicy, transitionTask } from './task-policy.mjs'
 
@@ -110,6 +111,10 @@ export class TorrentEngine extends EventEmitter {
     this.tasks = new Map()
     this.streamServer = null
     this.streamPort = null
+    this.localMediaServer = new LocalMediaServer({
+      token: this.streamToken,
+      resolveFile: (taskId, fileIndex) => this.#resolveLocalMediaFile(taskId, fileIndex)
+    })
     this.initialized = false
     this.closed = false
   }
@@ -120,6 +125,7 @@ export class TorrentEngine extends EventEmitter {
     await mkdir(this.downloadPath, { recursive: true })
     await this.cacheManager.reset()
     await this.#startStreamServer()
+    await this.localMediaServer.start()
     this.initialized = true
   }
 
@@ -229,6 +235,10 @@ export class TorrentEngine extends EventEmitter {
     return this.#snapshot(this.#requireTask(taskId))
   }
 
+  async completedFilePath (taskId, fileIndex) {
+    return (await this.#resolveLocalMediaFile(taskId, fileIndex)).path
+  }
+
   listTasks () {
     return [...this.tasks.values()].map(task => this.#snapshot(task))
   }
@@ -245,6 +255,21 @@ export class TorrentEngine extends EventEmitter {
 
     const transition = transitionTask(task.policy, ACTION.PLAY)
     try {
+      if (task.policy.phase === 'complete') {
+        await this.#resolveLocalMediaFile(task.id, fileIndex)
+        task.policy = transition.state
+        task.error = null
+        this.#emitChange(task)
+        return {
+          taskId: task.id,
+          fileIndex,
+          name: fileRecord.name,
+          mediaType: fileRecord.mediaType,
+          source: 'local',
+          url: this.localMediaServer.urlFor(task.id, fileIndex)
+        }
+      }
+
       if (task.policy.phase === 'ready') {
         const cachePath = await this.cacheManager.createTaskPath(task.id)
         task.activeTorrent = await this.#addTransfer(task, {
@@ -268,6 +293,7 @@ export class TorrentEngine extends EventEmitter {
         fileIndex,
         name: activeFile.name,
         mediaType: fileRecord.mediaType,
+        source: 'torrent',
         url: `http://127.0.0.1:${this.streamPort}${activeFile.streamURL}`
       }
     } catch (error) {
@@ -364,6 +390,7 @@ export class TorrentEngine extends EventEmitter {
       }
     }
     await this.cacheManager.reset()
+    await this.localMediaServer.close().catch(() => {})
 
     if (this.streamServer) {
       await closeWithCallback(callback => this.streamServer.destroy(callback)).catch(() => {})
@@ -480,6 +507,60 @@ export class TorrentEngine extends EventEmitter {
     } catch (error) {
       await rm(temporaryPath, { force: true }).catch(() => {})
       throw error
+    }
+  }
+
+  async #resolveLocalMediaFile (taskId, fileIndex) {
+    const task = this.#requireTask(taskId)
+    const file = task.files[fileIndex]
+    if (task.policy.phase !== 'complete' || task.policy.storage !== 'persistent' || !task.downloadPath) {
+      throw new TorrentEngineError('LOCAL_FILE_UNAVAILABLE', 'This task is not a completed permanent download')
+    }
+    if (!file || file.index !== fileIndex || !file.playable) {
+      throw new TorrentEngineError('FILE_NOT_FOUND', 'The selected video file is unavailable')
+    }
+
+    const root = path.resolve(task.downloadPath)
+    const filePath = path.resolve(root, ...file.path.split(/[\\/]/))
+    if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) {
+      throw new TorrentEngineError('LOCAL_FILE_MISSING', 'The downloaded video path is invalid')
+    }
+
+    let fileStat
+    let resolvedRoot
+    let resolvedFile
+    try {
+      const linkStat = await lstat(filePath)
+      if (linkStat.isSymbolicLink()) {
+        throw new TorrentEngineError('LOCAL_FILE_MISSING', 'Symbolic links cannot be played as downloaded videos')
+      }
+      const resolved = await Promise.all([
+        realpath(root),
+        realpath(filePath),
+        stat(filePath)
+      ])
+      resolvedRoot = resolved[0]
+      resolvedFile = resolved[1]
+      fileStat = resolved[2]
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        throw new TorrentEngineError('LOCAL_FILE_MISSING', 'The downloaded video was moved or deleted', { cause: error })
+      }
+      throw error
+    }
+    if (resolvedFile !== resolvedRoot && !resolvedFile.startsWith(`${resolvedRoot}${path.sep}`)) {
+      throw new TorrentEngineError('LOCAL_FILE_MISSING', 'The downloaded video resolves outside its download directory')
+    }
+    if (!fileStat.isFile()) {
+      throw new TorrentEngineError('LOCAL_FILE_MISSING', 'The downloaded video is not a regular file')
+    }
+    if (fileStat.size !== file.length) {
+      throw new TorrentEngineError('LOCAL_FILE_INCOMPLETE', 'The downloaded video is incomplete or has changed')
+    }
+    return {
+      path: resolvedFile,
+      length: file.length,
+      mediaType: file.mediaType
     }
   }
 

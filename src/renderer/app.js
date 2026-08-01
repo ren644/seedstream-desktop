@@ -128,6 +128,10 @@ function errorMessage (error) {
     INVALID_TORRENT_FILE: '无法解析该文件，请确认它是有效的 .torrent 种子。',
     UNSUPPORTED_MEDIA: '内置播放器不支持这个文件格式或编码。',
     NO_DOWNLOAD_PATH: '这个任务还没有永久下载目录。',
+    LOCAL_FILE_MISSING: '下载完成的视频已被移动或删除，请打开下载目录检查。',
+    LOCAL_FILE_INCOMPLETE: '本地视频文件不完整或已被修改，请重新下载。',
+    LOCAL_FILE_UNAVAILABLE: '这个任务还没有可供本地播放的完整视频。',
+    SYSTEM_OPEN_FAILED: '系统没有找到能打开这个视频的应用，请安装 VLC 或 IINA 后重试。',
     TASK_NOT_FOUND: '任务已不存在，请刷新后重试。'
   }
   return byCode[error?.code] ?? error?.message ?? '操作失败，请稍后重试。'
@@ -198,7 +202,13 @@ function renderTaskActions (task) {
     elements.taskActions.append(actionButton('继续下载', 'resume', 'button button-primary'))
     elements.taskActions.append(actionButton('打开目录', 'reveal', 'button button-quiet'))
   } else if (phase === 'complete') {
-    elements.taskActions.append(actionButton('打开目录', 'reveal', 'button button-primary'))
+    if (task.files.some(file => file.playable)) {
+      elements.taskActions.append(actionButton('播放视频', 'play-first', 'button button-primary'))
+      elements.taskActions.append(actionButton('系统打开', 'open-first', 'button button-secondary'))
+      elements.taskActions.append(actionButton('打开目录', 'reveal', 'button button-quiet'))
+    } else {
+      elements.taskActions.append(actionButton('打开目录', 'reveal', 'button button-primary'))
+    }
   }
   elements.taskActions.append(actionButton('移除记录', 'remove', 'button button-danger'))
 }
@@ -217,12 +227,21 @@ function renderFiles (task) {
 
     if (file.playable) {
       const playButton = actionButton(
-        viewState.playback?.taskId === task.id && viewState.playback?.fileIndex === file.index ? '播放中' : '播放',
+        viewState.playback?.taskId === task.id && viewState.playback?.fileIndex === file.index
+          ? '播放中'
+          : task.policy.phase === 'complete' ? '本地播放' : '播放',
         'play',
         'button button-quiet file-play'
       )
       playButton.dataset.fileIndex = String(file.index)
-      row.append(playButton)
+      const fileActions = makeElement('div', 'file-actions')
+      fileActions.append(playButton)
+      if (task.policy.phase === 'complete') {
+        const openButton = actionButton('系统打开', 'open-file', 'button button-quiet file-open')
+        openButton.dataset.fileIndex = String(file.index)
+        fileActions.append(openButton)
+      }
+      row.append(fileActions)
     } else {
       row.append(makeElement('span', 'unplayable', '下载文件'))
     }
@@ -273,7 +292,8 @@ function updatePlaybackDiagnostics () {
     task,
     elapsedMs: now - playback.startedAt,
     stalledMs: now - playback.lastProgressAt,
-    mediaState: playback.mediaState
+    mediaState: playback.mediaState,
+    source: playback.source
   })
   elements.playerPanel.dataset.health = health.kind
   elements.playerEyebrow.textContent = health.label
@@ -336,11 +356,12 @@ async function startPlayback (task, fileIndex) {
     mediaState: 'loading'
   }
   elements.playerPanel.hidden = false
-  elements.playerPanel.dataset.health = 'connecting'
-  elements.playerEyebrow.textContent = 'PEER DISCOVERY'
+  const initialHealth = playbackHealth({ task, source: playback.source })
+  elements.playerPanel.dataset.health = initialHealth.kind
+  elements.playerEyebrow.textContent = initialHealth.label
   elements.playerTitle.textContent = playback.name
-  elements.playerStatus.textContent = '正在寻找可用节点…'
-  elements.retryPlayerButton.hidden = true
+  elements.playerStatus.textContent = initialHealth.status
+  elements.retryPlayerButton.hidden = !initialHealth.canRetry
   elements.playerError.hidden = true
   elements.playerError.textContent = ''
   const compatibilityNotice = mediaCompatibilityNotice(playback.name)
@@ -391,6 +412,21 @@ async function handleTaskAction (action, fileIndex) {
   const task = selectedTask()
   if (!task) return
   if (action === 'play') return startPlayback(task, fileIndex)
+  if (action === 'play-first') {
+    const firstPlayable = task.files.find(file => file.playable)
+    if (firstPlayable) return startPlayback(task, firstPlayable.index)
+    return
+  }
+  if (action === 'open-first') {
+    const firstPlayable = task.files.find(file => file.playable)
+    if (firstPlayable) return handleTaskAction('open-file', firstPlayable.index)
+    return
+  }
+  if (action === 'open-file') {
+    await api.openDownloadedFile(task.id, fileIndex)
+    showToast('已交给系统播放器打开。')
+    return
+  }
   if (action === 'download') {
     if (viewState.playback?.taskId === task.id) closePlayerLocally()
     await api.startDownload(task.id)
@@ -475,9 +511,9 @@ elements.taskActions.addEventListener('click', event => {
 })
 
 elements.fileList.addEventListener('click', event => {
-  const button = event.target.closest('[data-action="play"]')
+  const button = event.target.closest('[data-action="play"], [data-action="open-file"]')
   if (!button) return
-  withBusy(() => handleTaskAction('play', Number(button.dataset.fileIndex)))
+  withBusy(() => handleTaskAction(button.dataset.action, Number(button.dataset.fileIndex)))
 })
 
 elements.closePlayerButton.addEventListener('click', () => withBusy(closePlayback))
@@ -502,8 +538,12 @@ elements.videoPlayer.addEventListener('error', () => {
   if (viewState.playback) viewState.playback.mediaState = 'error'
   const code = elements.videoPlayer.error?.code
   const message = code === MediaError.MEDIA_ERR_DECODE || code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
-    ? '当前视频编码无法由内置播放器解码。你仍然可以完整下载后使用其他播放器打开。'
-    : '视频流暂时不可用，请检查节点连接后重试。'
+    ? viewState.playback?.source === 'local'
+        ? '当前视频编码无法由内置播放器解码，请点击“系统打开”并使用 VLC、IINA 等播放器观看。'
+        : '当前视频编码无法由内置播放器解码。完整下载后可点击“系统打开”。'
+    : viewState.playback?.source === 'local'
+        ? '本地视频文件暂时无法读取，请打开下载目录检查文件。'
+        : '视频流暂时不可用，请检查节点连接后重试。'
   elements.playerStatus.textContent = '播放失败'
   elements.playerEyebrow.textContent = 'PLAYBACK ERROR'
   elements.retryPlayerButton.hidden = code === MediaError.MEDIA_ERR_DECODE || code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED

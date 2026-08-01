@@ -726,6 +726,13 @@ video {
   min-width: 68px;
 }
 
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .unplayable {
   color: var(--faint);
   font-size: 10px;

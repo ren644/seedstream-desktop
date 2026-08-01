@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  bittorrent-tracker@11.2.3>ip: '-'
+
+patchedDependencies:
+  bittorrent-tracker@11.2.3: b6267af3f11c9a3942808a6cd6512d75010d71a5240448fbf5203dc4039d790d
+
 importers:
 
   .:
@@ -846,9 +852,6 @@ packages:
   ip-set@3.0.0:
     resolution: {integrity: sha512-EkKzllMFYKMHOoeNxM8v10IJM2n9K6L3ruaQx4A/5RrkOInV8cjp9IwkVU0/cpzwwkq1zGNudrAdCjSR97Rf5w==}
     engines: {node: '>=18'}
-
-  ip@2.0.1:
-    resolution: {integrity: sha512-lJUL9imLTNi1ZfXT+DU6rBBdbiKGBuay9B6xGSPVjUeQwaH1RIGqef8RZkUtHioLmSNpPR5M4HVKJGm1j8FWVQ==}
 
   ipaddr.js@2.0.1:
     resolution: {integrity: sha512-1qTgH9NG+IIJ4yfKs2e6Pp1bZg8wbDbKHT21HrLIeYBTRLgMYKnMTPAuI3Lcs61nfx5h1xlXnbJtH1kX5/d/ng==}
@@ -2061,7 +2064,7 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  bittorrent-tracker@11.2.3:
+  bittorrent-tracker@11.2.3(patch_hash=b6267af3f11c9a3942808a6cd6512d75010d71a5240448fbf5203dc4039d790d):
     dependencies:
       '@thaunknown/simple-peer': 10.1.2
       '@thaunknown/simple-websocket': 9.1.5(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -2071,7 +2074,6 @@ snapshots:
       compact2string: 1.4.1
       cross-fetch-ponyfill: 1.0.3
       debug: 4.4.3
-      ip: 2.0.1
       lru: 3.1.0
       minimist: 1.2.8
       once: 1.4.0
@@ -2625,7 +2627,7 @@ snapshots:
       es6-error: 4.1.1
       matcher: 3.0.0
       roarr: 2.15.4
-      semver: 7.7.4
+      semver: 7.8.5
       serialize-error: 7.0.1
     optional: true
 
@@ -2719,8 +2721,6 @@ snapshots:
   ip-set@3.0.0:
     dependencies:
       ip-address: 10.3.1
-
-  ip@2.0.1: {}
 
   ipaddr.js@2.0.1: {}
 
@@ -2914,11 +2914,11 @@ snapshots:
 
   node-abi@4.33.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   node-datachannel@0.32.3:
     dependencies:
@@ -2942,7 +2942,7 @@ snapshots:
       graceful-fs: 4.2.11
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.7.4
+      semver: 7.8.5
       tar: 7.5.22
       tinyglobby: 0.2.17
       undici: 6.28.0
@@ -3376,7 +3376,7 @@ snapshots:
     dependencies:
       bittorrent-dht: 11.0.12
       bittorrent-lsd: 2.0.3
-      bittorrent-tracker: 11.2.3
+      bittorrent-tracker: 11.2.3(patch_hash=b6267af3f11c9a3942808a6cd6512d75010d71a5240448fbf5203dc4039d790d)
       debug: 4.4.3
       run-parallel: 1.2.0
     transitivePeerDependencies:

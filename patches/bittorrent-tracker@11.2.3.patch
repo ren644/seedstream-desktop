@@ -1,0 +1,22 @@
+diff --git a/lib/server/parse-udp.js b/lib/server/parse-udp.js
+index f73b649176adfa1b9e3088416e97463e23b867f4..056bc41029e9e89f5e6c6d72db2ee6ef6adfd06e 100644
+--- a/lib/server/parse-udp.js
++++ b/lib/server/parse-udp.js
+@@ -1 +0,0 @@
+-import ipLib from 'ip'
+@@ -33 +32 @@ export default function (msg, rinfo) {
+-      ? ipLib.toString(ip)
++      ? ipv4FromUInt32(ip)
+@@ -63,0 +63,6 @@ const TWO_PWR_32 = (1 << 16) * 2
++function ipv4FromUInt32 (value) {
++  return [24, 16, 8, 0]
++    .map(shift => (value >>> shift) & 0xff)
++    .join('.')
++}
++
+diff --git a/package.json b/package.json
+index c1153bea29ff65494293e3d46e78c34c8222c923..0d4e6efe2f2f12a2a67260dc1122a0b701ee0d91 100644
+--- a/package.json
++++ b/package.json
+@@ -38 +37,0 @@
+-    "ip": "^2.0.1",

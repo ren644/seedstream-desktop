@@ -47,6 +47,7 @@ test('maps engine state to honest user-facing status labels', () => {
   assert.equal(statusLabel({ policy: { phase: 'streaming' }, numPeers: 2 }), '边下边播')
   assert.equal(statusLabel({ policy: { phase: 'streaming' }, numPeers: 2, noPeers: true }), '边下边播')
   assert.equal(statusLabel({ policy: { phase: 'downloading' }, noPeers: true }), '等待可用节点')
+  assert.equal(statusLabel({ policy: { phase: 'downloading' }, noPeers: true, numPeers: 1, downloadSpeed: 1024 }), '正在下载')
   assert.equal(statusLabel({ policy: { phase: 'downloading' }, noPeers: false }), '正在下载')
   assert.equal(statusLabel({ policy: { phase: 'paused' } }), '已暂停')
   assert.equal(statusLabel({ policy: { phase: 'complete' } }), '下载完成')
@@ -73,6 +74,17 @@ test('explains peer discovery and stalled transfers instead of buffering forever
   assert.equal(playbackHealth({ task: { numPeers: 1, downloadSpeed: 64 }, stalledMs: 0 }).kind, 'buffering')
   assert.equal(playbackHealth({ task: emptyTask, mediaState: 'ready' }).kind, 'ready')
   assert.equal(playbackHealth({ task: emptyTask, mediaState: 'playing' }).kind, 'playing')
+  assert.deepEqual(
+    playbackHealth({ task: emptyTask, source: 'local', mediaState: 'loading' }),
+    {
+      kind: 'local',
+      label: 'LOCAL PLAYBACK',
+      status: '正在打开本地视频…',
+      detail: '',
+      canRetry: false
+    }
+  )
+  assert.equal(playbackHealth({ task: emptyTask, source: 'local', mediaState: 'playing' }).status, '本地文件播放')
 })
 
 test('warns conservatively about filename-signaled media compatibility risks', () => {

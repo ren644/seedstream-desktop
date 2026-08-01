@@ -171,6 +171,16 @@ function registerIpcHandlers () {
   registerHandler(CHANNELS.PLAY_FILE, async (taskId, fileIndex) => (
     engine.play(assertTaskId(taskId), assertFileIndex(fileIndex))
   ))
+  registerHandler(CHANNELS.OPEN_DOWNLOADED_FILE, async (taskId, fileIndex) => {
+    const filePath = await engine.completedFilePath(assertTaskId(taskId), assertFileIndex(fileIndex))
+    const message = await shell.openPath(filePath)
+    if (message) {
+      const error = new Error(message)
+      error.code = 'SYSTEM_OPEN_FAILED'
+      throw error
+    }
+    return null
+  })
   registerHandler(CHANNELS.CLOSE_PLAYER, async taskId => (
     rendererTask(await engine.closePlayer(assertTaskId(taskId)))
   ))
@@ -243,7 +253,7 @@ function createWindow () {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
           return {
-            bridge: typeof window.seedstream.playFile === 'function',
+            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
             help: Boolean(document.querySelector('#helpButton')),
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,

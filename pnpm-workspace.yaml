@@ -6,3 +6,7 @@ allowBuilds:
   node-datachannel: true
   utf-8-validate: false
   utp-native: false
+patchedDependencies:
+  bittorrent-tracker@11.2.3: patches/bittorrent-tracker@11.2.3.patch
+overrides:
+  "bittorrent-tracker@11.2.3>ip": "-"

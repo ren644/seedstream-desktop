@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import os from 'node:os'
 import path from 'node:path'
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import createTorrent from 'create-torrent'
 import parseTorrent from 'parse-torrent'
 
@@ -133,12 +133,13 @@ class FakeClient extends EventEmitter {
 
 async function withEngine (callback) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'seedstream-engine-'))
+  let engine
   try {
     const torrentBuffer = await createFixture(directory)
     const parsed = await parseTorrent(torrentBuffer)
     const client = new FakeClient(parsed)
     const cacheManager = new CacheManager(path.join(directory, 'cache'))
-    const engine = new TorrentEngine({
+    engine = new TorrentEngine({
       client,
       cacheManager,
       metadataDirectory: path.join(directory, 'metadata'),
@@ -147,8 +148,8 @@ async function withEngine (callback) {
     })
     await engine.initialize()
     await callback({ directory, torrentBuffer, parsed, client, cacheManager, engine })
-    await engine.shutdown()
   } finally {
+    await engine?.shutdown()
     await rm(directory, { recursive: true, force: true })
   }
 }
@@ -207,6 +208,113 @@ test('streams from ephemeral cache, then purges it before permanent download', a
     assert.equal(client.addCalls.length, addCount, 'permanent playback reuses active torrent')
     await engine.closePlayer(imported.id)
     assert.equal(engine.getTask(imported.id).policy.phase, 'downloading')
+  })
+})
+
+test('plays a completed download from the local file without reconnecting the torrent', async () => {
+  await withEngine(async ({ torrentBuffer, parsed, client, engine }) => {
+    const imported = await engine.importTorrentBuffer(torrentBuffer, 'sample.torrent')
+    const downloading = await engine.startDownload(imported.id)
+    const localPath = path.join(downloading.downloadPath, parsed.files[0].path)
+    const localBytes = Buffer.alloc(parsed.files[0].length, 19)
+    await mkdir(path.dirname(localPath), { recursive: true })
+    await writeFile(localPath, localBytes)
+
+    const activeTorrent = client.addCalls.at(-1).torrent
+    activeTorrent.progress = 1
+    activeTorrent.downloaded = activeTorrent.length
+    activeTorrent.emit('done')
+    assert.equal(engine.getTask(imported.id).policy.phase, 'complete')
+
+    const addCount = client.addCalls.length
+    const playback = await engine.play(imported.id, 0)
+    assert.equal(playback.source, 'local')
+    assert.match(playback.url, /^http:\/\/127\.0\.0\.1:\d+\/local-fixed-token\//)
+    assert.equal(client.addCalls.length, addCount, 'local playback must not reconnect the torrent')
+    assert.equal(await engine.completedFilePath(imported.id, 0), await realpath(localPath))
+
+    const response = await fetch(playback.url, { headers: { Range: 'bytes=8-23' } })
+    assert.equal(response.status, 206)
+    assert.equal(response.headers.get('accept-ranges'), 'bytes')
+    assert.equal(response.headers.get('content-range'), `bytes 8-23/${localBytes.length}`)
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), localBytes.subarray(8, 24))
+
+    const headResponse = await fetch(playback.url, { method: 'HEAD' })
+    assert.equal(headResponse.status, 200)
+    assert.equal(headResponse.headers.get('content-length'), String(localBytes.length))
+    assert.equal((await headResponse.arrayBuffer()).byteLength, 0)
+
+    const invalidRange = await fetch(playback.url, { headers: { Range: `bytes=${localBytes.length}-` } })
+    assert.equal(invalidRange.status, 416)
+    assert.equal(invalidRange.headers.get('content-range'), `bytes */${localBytes.length}`)
+
+    await engine.closePlayer(imported.id)
+    assert.equal(engine.getTask(imported.id).policy.phase, 'complete')
+  })
+})
+
+test('restores a completed task and plays it locally while offline', async () => {
+  await withEngine(async ({ directory, torrentBuffer, parsed, client, engine }) => {
+    const imported = await engine.importTorrentBuffer(torrentBuffer, 'sample.torrent')
+    const downloading = await engine.startDownload(imported.id)
+    const localPath = path.join(downloading.downloadPath, parsed.files[0].path)
+    await mkdir(path.dirname(localPath), { recursive: true })
+    await writeFile(localPath, Buffer.alloc(parsed.files[0].length, 29))
+    client.addCalls.at(-1).torrent.emit('done')
+    const completed = engine.getTask(imported.id)
+    await engine.shutdown()
+
+    const restoredClient = new FakeClient(parsed)
+    const restoredEngine = new TorrentEngine({
+      client: restoredClient,
+      cacheManager: new CacheManager(path.join(directory, 'completed-cache')),
+      metadataDirectory: path.join(directory, 'metadata'),
+      downloadPath: path.join(directory, 'other-downloads'),
+      streamToken: 'completed-token'
+    })
+    await restoredEngine.initialize()
+    try {
+      await restoredEngine.restorePersistentTask(completed)
+      const playback = await restoredEngine.play(imported.id, 0)
+      assert.equal(playback.source, 'local')
+      assert.equal(restoredClient.addCalls.length, 0)
+      assert.equal((await fetch(playback.url, { method: 'HEAD' })).status, 200)
+    } finally {
+      await restoredEngine.shutdown()
+    }
+  })
+})
+
+test('reports a clear error when a completed download was moved or deleted', async () => {
+  await withEngine(async ({ torrentBuffer, client, engine }) => {
+    const imported = await engine.importTorrentBuffer(torrentBuffer, 'sample.torrent')
+    await engine.startDownload(imported.id)
+    client.addCalls.at(-1).torrent.emit('done')
+
+    await assert.rejects(
+      () => engine.play(imported.id, 0),
+      error => error.code === 'LOCAL_FILE_MISSING'
+    )
+    assert.equal(engine.getTask(imported.id).policy.playing, false)
+  })
+})
+
+test('refuses to serve a completed-file symlink outside the download directory', async () => {
+  if (process.platform === 'win32') return
+  await withEngine(async ({ directory, torrentBuffer, parsed, client, engine }) => {
+    const imported = await engine.importTorrentBuffer(torrentBuffer, 'sample.torrent')
+    const downloading = await engine.startDownload(imported.id)
+    const outsidePath = path.join(directory, 'outside-video.mp4')
+    const localPath = path.join(downloading.downloadPath, parsed.files[0].path)
+    await writeFile(outsidePath, Buffer.alloc(parsed.files[0].length, 41))
+    await mkdir(path.dirname(localPath), { recursive: true })
+    await symlink(outsidePath, localPath)
+    client.addCalls.at(-1).torrent.emit('done')
+
+    await assert.rejects(
+      () => engine.play(imported.id, 0),
+      error => error.code === 'LOCAL_FILE_MISSING'
+    )
   })
 })
 

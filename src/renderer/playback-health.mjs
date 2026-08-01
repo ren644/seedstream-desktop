@@ -17,8 +17,22 @@ export function playbackHealth ({
   task,
   elapsedMs = 0,
   stalledMs = 0,
-  mediaState = 'loading'
+  mediaState = 'loading',
+  source = 'torrent'
 }) {
+  if (source === 'local') {
+    if (mediaState === 'error' || task?.error) {
+      return { kind: 'error', label: 'PLAYBACK ERROR', status: '播放失败', detail: task?.error ?? '', canRetry: false }
+    }
+    if (mediaState === 'playing') {
+      return { kind: 'local', label: 'LOCAL PLAYBACK', status: '本地文件播放', detail: '', canRetry: false }
+    }
+    if (mediaState === 'ready') {
+      return { kind: 'local', label: 'LOCAL PLAYBACK', status: '本地视频已就绪', detail: '', canRetry: false }
+    }
+    return { kind: 'local', label: 'LOCAL PLAYBACK', status: '正在打开本地视频…', detail: '', canRetry: false }
+  }
+
   if (mediaState === 'playing') {
     return { kind: 'playing', label: 'NOW PLAYING', status: '边下边播', detail: '', canRetry: false }
   }
