@@ -6,10 +6,17 @@ const helpDirectory = path.join(projectRoot, 'help')
 const distDirectory = path.join(projectRoot, 'dist')
 
 await mkdir(distDirectory, { recursive: true })
-for (const fileName of ['SeedStream-使用指南.html', '首次打开说明.txt']) {
+const guideCopies = [
+  ['SeedStream-使用指南.html', 'SeedStream-使用指南.html'],
+  ['SeedStream-使用指南.html', 'SeedStream-User-Guide.html'],
+  ['首次打开说明.txt', '首次打开说明.txt'],
+  ['首次打开说明.txt', 'SeedStream-First-Launch.txt']
+]
+
+for (const [sourceName, targetName] of guideCopies) {
   await copyFile(
-    path.join(helpDirectory, fileName),
-    path.join(distDirectory, fileName)
+    path.join(helpDirectory, sourceName),
+    path.join(distDirectory, targetName)
   )
 }
 
