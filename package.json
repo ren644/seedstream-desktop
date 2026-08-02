@@ -18,6 +18,7 @@
     "pack:win": "electron-builder --win nsis portable --x64 && node scripts/copy-user-guide.mjs && node scripts/generate-checksums.mjs"
   },
   "dependencies": {
+    "fast-xml-parser": "5.10.1",
     "parse-torrent": "11.0.24",
     "webtorrent": "3.0.21"
   },
