@@ -337,18 +337,19 @@ function createWindow () {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
           return {
-            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function',
+            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.searchTorrents === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.openSearchBrowser === 'function',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
             help: Boolean(document.querySelector('#helpButton')),
             windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
             playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
+            searchCenter: Boolean(document.querySelector('#searchCenterButton')) && Boolean(document.querySelector('#searchDialog')),
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,
             guidePlatform: document.querySelector('#guidePlatform')?.textContent,
             taskCount: state.tasks.length,
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.searchCenter || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)

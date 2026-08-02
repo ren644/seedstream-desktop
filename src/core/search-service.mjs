@@ -136,7 +136,20 @@ export class SearchService {
 
   async saveConfig (input) {
     if (typeof this.configStore.save !== 'function') throw new TypeError('Search configuration is read-only')
-    const providers = await this.configStore.save(normalizeProviderConfigs(input))
+    const existing = await this.configStore.load()
+    const existingById = new Map(existing.map(provider => [provider.id, provider]))
+    const mergedInput = Array.isArray(input)
+      ? input.map(provider => {
+          if (!provider || typeof provider !== 'object' || Array.isArray(provider)) return provider
+          const id = typeof provider.id === 'string' ? provider.id.trim().toLowerCase() : ''
+          const hasApiKey = Object.prototype.hasOwnProperty.call(provider, 'apiKey')
+          return {
+            ...provider,
+            apiKey: hasApiKey ? provider.apiKey : existingById.get(id)?.apiKey ?? ''
+          }
+        })
+      : input
+    const providers = await this.configStore.save(normalizeProviderConfigs(mergedInput))
     return {
       secretsPersisted: this.configStore.secretsPersisted !== false,
       providers: providers.map(({ apiKey, ...provider }) => ({ ...provider, apiKeyConfigured: Boolean(apiKey) }))

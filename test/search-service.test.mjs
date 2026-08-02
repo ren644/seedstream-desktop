@@ -78,6 +78,26 @@ test('does not persist plaintext keys when system encryption is unavailable', as
   })
 })
 
+test('preserves an existing secret when the renderer saves redacted provider settings', async () => {
+  let saved
+  const existing = {
+    id: 'home', name: 'Home', kind: 'torznab', endpoint: 'https://search.example/api',
+    apiKey: 'existing-secret', enabled: true
+  }
+  const configStore = {
+    secretsPersisted: true,
+    load: async () => [existing],
+    save: async providers => { saved = providers; return providers }
+  }
+  const service = new SearchService({ configStore, archiveEnabled: false })
+  await service.saveConfig([{
+    id: 'home', name: 'Renamed', kind: 'torznab', endpoint: 'https://search.example/api', enabled: false
+  }])
+  assert.equal(saved[0].apiKey, 'existing-secret')
+  assert.equal(saved[0].name, 'Renamed')
+  assert.equal(saved[0].enabled, false)
+})
+
 test('aggregates Archive and Torznab while isolating failed sources', async () => {
   const server = await listen((request, response) => {
     const url = new URL(request.url, 'http://localhost')

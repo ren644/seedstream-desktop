@@ -67,10 +67,11 @@ try {
   assert.match(ui.stdout, /"help":true/)
   assert.match(ui.stdout, /"windowMaximize":true/)
   assert.match(ui.stdout, /"playerFullscreen":true/)
+  assert.match(ui.stdout, /"searchCenter":true/)
   assert.match(ui.stdout, /"onboarding":true/)
   assert.match(ui.stdout, /"guidePlatform":"macOS"/)
 } finally {
   await rm(smokeUserData, { recursive: true, force: true })
 }
 
-console.log('SeedStream smoke checks passed: local byte-range stream, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')
+console.log('SeedStream smoke checks passed: local byte-range stream, secure renderer bridge, private search center, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')

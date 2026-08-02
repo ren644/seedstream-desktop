@@ -18,6 +18,7 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button id="searchCenterButton" class="search-launch-button" type="button">搜索资源</button>
           <button id="windowMaximizeButton" class="help-button" type="button" aria-pressed="false">窗口最大化</button>
           <button id="helpButton" class="help-button" type="button" aria-haspopup="dialog">使用帮助</button>
           <div class="network-indicator" title="本地应用状态">
@@ -122,6 +123,111 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="searchBackdrop" class="search-backdrop" hidden>
+      <section
+        id="searchDialog"
+        class="search-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="searchTitle"
+        tabindex="-1"
+      >
+        <header class="search-header">
+          <div>
+            <p class="section-label">PRIVATE SEARCH ARRAY</p>
+            <h2 id="searchTitle">资源搜索中心</h2>
+            <p>聚合搜索、网页捕获和磁力链接都在本机处理。请只获取你有权访问或分享的内容。</p>
+          </div>
+          <button id="closeSearchButton" class="button button-quiet" type="button">关闭</button>
+        </header>
+
+        <nav id="searchTabs" class="search-tabs" aria-label="搜索方式">
+          <button class="search-tab is-active" type="button" data-search-tab="aggregate" aria-selected="true">聚合搜索</button>
+          <button class="search-tab" type="button" data-search-tab="browser" aria-selected="false">网页捕获</button>
+          <button class="search-tab" type="button" data-search-tab="magnet" aria-selected="false">磁力链接</button>
+          <button class="search-tab" type="button" data-search-tab="sources" aria-selected="false">搜索源设置</button>
+        </nav>
+
+        <div class="search-body">
+          <section class="search-panel" data-search-panel="aggregate">
+            <form id="aggregateSearchForm" class="search-command">
+              <label for="aggregateSearchInput">输入片名、文件名或关键词</label>
+              <div>
+                <input id="aggregateSearchInput" type="search" maxlength="200" autocomplete="off" placeholder="例如：Sintel 1080p" required>
+                <button class="button button-primary" type="submit">开始搜索</button>
+              </div>
+            </form>
+            <div class="search-toolbar">
+              <p id="searchSourceSummary">尚未搜索</p>
+              <label>排序
+                <select id="searchSortSelect">
+                  <option value="recommended">推荐顺序</option>
+                  <option value="seeders">节点数量</option>
+                  <option value="newest">最新发布</option>
+                  <option value="smallest">容量从小到大</option>
+                </select>
+              </label>
+            </div>
+            <div id="searchSourceHealth" class="source-health" aria-live="polite"></div>
+            <div id="searchResults" class="search-results" aria-live="polite">
+              <div class="search-empty">
+                <span>⌕</span>
+                <strong>等待搜索信号</strong>
+                <p>无需配置也可搜索内置来源；添加私有搜索源后会自动合并结果。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="search-panel" data-search-panel="browser" hidden>
+            <div class="search-mode-card">
+              <p class="section-label">ISOLATED WEB CAPTURE</p>
+              <h3>在隔离窗口中搜索</h3>
+              <p>可以输入关键词或完整网址。网页无法读取本机文件；点击磁力链接或 `.torrent` 时，SeedStream 会自动接管。</p>
+              <form id="browserSearchForm" class="search-command">
+                <label for="browserSearchInput">关键词或网址</label>
+                <div>
+                  <input id="browserSearchInput" maxlength="2048" autocomplete="off" placeholder="关键词，或 https://…" required>
+                  <button class="button button-primary" type="submit">打开隔离搜索</button>
+                </div>
+              </form>
+              <button id="clearBrowserDataButton" class="button button-danger" type="button">清理网页缓存和登录数据</button>
+            </div>
+          </section>
+
+          <section class="search-panel" data-search-panel="magnet" hidden>
+            <div class="search-mode-card">
+              <p class="section-label">MAGNET HANDOFF</p>
+              <h3>直接粘贴磁力链接</h3>
+              <p>加入任务时会先获取文件清单，不会自动播放或永久下载。解析速度取决于可用节点。</p>
+              <form id="magnetImportForm" class="magnet-form">
+                <label for="magnetInput">磁力链接</label>
+                <textarea id="magnetInput" rows="5" maxlength="8192" spellcheck="false" placeholder="magnet:?xt=urn:btih:…" required></textarea>
+                <button class="button button-primary" type="submit">解析并加入任务</button>
+              </form>
+            </div>
+          </section>
+
+          <section class="search-panel" data-search-panel="sources" hidden>
+            <div class="source-settings-header">
+              <div>
+                <p class="section-label">SOURCE CONTROL</p>
+                <h3>扩展搜索范围</h3>
+                <p>支持 Jackett、Prowlarr 和其他 Torznab 地址。API 密钥不会发送到界面之外的网页。</p>
+              </div>
+              <span id="secretStorageStatus" class="platform-badge">读取中</span>
+            </div>
+            <div id="providerList" class="provider-list"></div>
+            <form id="providerForm" class="provider-form">
+              <label>显示名称<input id="providerNameInput" maxlength="80" placeholder="例如：家庭搜索" required></label>
+              <label>Torznab 地址<input id="providerEndpointInput" type="url" maxlength="2048" placeholder="http://127.0.0.1:9117/api/v2.0/indexers/all/results/torznab/" required></label>
+              <label>API 密钥<input id="providerApiKeyInput" type="password" maxlength="512" autocomplete="off" placeholder="仅保存在本机"></label>
+              <button class="button button-primary" type="submit">添加搜索源</button>
+            </form>
+          </section>
+        </div>
+      </section>
     </div>
 
     <div id="onboardingBackdrop" class="onboarding-backdrop" hidden>

@@ -19,6 +19,12 @@ import {
   fullscreenButtonLabel,
   maximizeButtonLabel
 } from '../src/renderer/fullscreen-controls.mjs'
+import {
+  availabilityLabel,
+  canImportSearchResult,
+  searchSourceSummary,
+  sortSearchResults
+} from '../src/renderer/search-ui.mjs'
 
 test('formats byte sizes and transfer speeds for compact task cards', () => {
   assert.equal(formatBytes(0), '0 B')
@@ -116,4 +122,26 @@ test('labels video fullscreen and window maximize controls honestly', () => {
   assert.equal(fullscreenButtonLabel(true), '退出全屏')
   assert.equal(maximizeButtonLabel(false), '窗口最大化')
   assert.equal(maximizeButtonLabel(true), '还原窗口')
+})
+
+test('labels search availability without promising actual transfer speed', () => {
+  assert.equal(availabilityLabel({ seeders: 31 }), '节点较多')
+  assert.equal(availabilityLabel({ seeders: 8 }), '节点一般')
+  assert.equal(availabilityLabel({ seeders: 1 }), '节点较少')
+  assert.equal(availabilityLabel({ seeders: null }), '节点未知')
+  assert.equal(canImportSearchResult({ token: 'valid', hasTorrent: true }), true)
+  assert.equal(canImportSearchResult({ token: '', hasTorrent: true }), false)
+  assert.equal(canImportSearchResult({ token: 'valid' }), false)
+})
+
+test('summarizes partial search-source failures and supports deterministic UI sorts', () => {
+  assert.equal(searchSourceSummary([]), '尚未搜索')
+  assert.equal(searchSourceSummary([{ status: 'ok', count: 3 }, { status: 'error', count: 0 }]), '1 个来源可用 · 1 个来源异常 · 3 条原始结果')
+  const results = [
+    { title: 'B', size: 20, seeders: 2, publishedAt: '2026-08-02T00:00:00Z', availabilityScore: 2 },
+    { title: 'A', size: 10, seeders: 8, publishedAt: '2026-08-01T00:00:00Z', availabilityScore: 8 }
+  ]
+  assert.deepEqual(sortSearchResults(results, 'recommended').map(item => item.title), ['A', 'B'])
+  assert.deepEqual(sortSearchResults(results, 'newest').map(item => item.title), ['B', 'A'])
+  assert.deepEqual(sortSearchResults(results, 'smallest').map(item => item.title), ['A', 'B'])
 })
