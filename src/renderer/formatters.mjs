@@ -3,7 +3,7 @@ const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 export function formatBytes (value) {
   if (!Number.isFinite(value) || value < 0) return '—'
   if (value === 0) return '0 B'
-  const unitIndex = Math.min(Math.floor(Math.log(value) / Math.log(1024)), SIZE_UNITS.length - 1)
+  const unitIndex = Math.max(0, Math.min(Math.floor(Math.log(value) / Math.log(1024)), SIZE_UNITS.length - 1))
   if (unitIndex === 0) return `${Math.round(value)} B`
   return `${(value / (1024 ** unitIndex)).toFixed(1)} ${SIZE_UNITS[unitIndex]}`
 }

@@ -32,6 +32,7 @@ test('formats byte sizes and transfer speeds for compact task cards', () => {
   assert.equal(formatBytes(1536), '1.5 KB')
   assert.equal(formatBytes(1024 ** 3), '1.0 GB')
   assert.equal(formatBytes(-1), '—')
+  assert.equal(formatSpeed(0.8), '1 B/s')
   assert.equal(formatSpeed(1024 ** 2), '1.0 MB/s')
 })
 

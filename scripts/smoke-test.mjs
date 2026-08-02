@@ -35,7 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-assert.match(packageJson.version, /^\d+\.\d+\.\d+$/)
+assert.equal(packageJson.version, '0.2.0')
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))
@@ -44,8 +44,11 @@ assert.equal(packageJson.build.nsis.perMachine, true)
 assert.equal(packageJson.build.nsis.oneClick, true)
 assert.equal(packageJson.build.nsis.runAfterFinish, true)
 assert.ok(packageJson.build.extraResources.some(resource => resource.from === 'help'))
-await readFile(path.join(projectRoot, 'help', 'SeedStream-使用指南.html'), 'utf8')
-await readFile(path.join(projectRoot, 'help', '首次打开说明.txt'), 'utf8')
+const fullGuide = await readFile(path.join(projectRoot, 'help', 'SeedStream-使用指南.html'), 'utf8')
+const firstLaunchGuide = await readFile(path.join(projectRoot, 'help', '首次打开说明.txt'), 'utf8')
+assert.match(fullGuide, /v0\.2\.0/)
+assert.match(fullGuide, /资源搜索中心/)
+assert.match(firstLaunchGuide, /搜索资源/)
 
 const integration = await runProcess(process.execPath, [
   '--test',
