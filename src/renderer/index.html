@@ -158,6 +158,17 @@
                 <input id="aggregateSearchInput" type="search" maxlength="200" autocomplete="off" placeholder="例如：Sintel 1080p" required>
                 <button class="button button-primary" type="submit">开始搜索</button>
               </div>
+              <section class="catalog-mode" aria-labelledby="catalogCodeModeLabel">
+                <label id="catalogCodeModeLabel" class="catalog-mode-toggle" for="catalogCodeMode">
+                  <input id="catalogCodeMode" type="checkbox">
+                  <span class="catalog-toggle-track" aria-hidden="true"><span></span></span>
+                  <span class="catalog-mode-copy">
+                    <strong>番号识别</strong>
+                    <small>自动统一大小写、全角字符和连字符</small>
+                  </span>
+                </label>
+                <p id="catalogCodeStatus" class="catalog-mode-status" aria-live="polite">开启后将优先匹配完整番号</p>
+              </section>
             </form>
             <div class="search-toolbar">
               <p id="searchSourceSummary">尚未搜索</p>

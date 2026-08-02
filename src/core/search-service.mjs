@@ -4,7 +4,7 @@ import {
   assertResultToken,
   assertSearchEndpoint,
   normalizeProviderConfigs,
-  normalizeSearchQuery
+  normalizeSearchRequest
 } from './search-contract.mjs'
 import { mapArchiveResults, parseTorznabFeed } from './search-providers.mjs'
 import { mergeSearchResults, rankSearchResults } from './search-results.mjs'
@@ -92,6 +92,7 @@ function publicResult (result, token) {
     detailsUrl: result.detailsUrl ?? null,
     sources: Array.isArray(result.sources) ? result.sources : [result.sourceName].filter(Boolean),
     availabilityScore: result.availabilityScore ?? 0,
+    catalogMatch: result.catalogMatch === true,
     hasMagnet: Boolean(result.magnetUri),
     hasTorrent: Boolean(result.torrentUrl)
   }
@@ -250,7 +251,7 @@ export class SearchService {
   }
 
   async search (input) {
-    const query = normalizeSearchQuery(input)
+    const request = normalizeSearchRequest(input)
     this.#clearExpiredTokens()
     const providers = normalizeProviderConfigs(await this.configStore.load())
     const operations = []
@@ -258,11 +259,15 @@ export class SearchService {
       operations.push({
         id: 'internet-archive',
         name: 'Internet Archive',
-        execute: () => this.#searchArchive(query)
+        execute: () => Promise.all(request.queries.map(query => this.#searchArchive(query))).then(results => results.flat())
       })
     }
     for (const provider of providers.filter(provider => provider.enabled)) {
-      operations.push({ id: provider.id, name: provider.name, execute: () => this.#searchTorznab(provider, query) })
+      operations.push({
+        id: provider.id,
+        name: provider.name,
+        execute: () => Promise.all(request.queries.map(query => this.#searchTorznab(provider, query))).then(results => results.flat())
+      })
     }
 
     const settled = await Promise.all(operations.map(async operation => {
@@ -280,9 +285,14 @@ export class SearchService {
       }
     }))
 
-    const ranked = rankSearchResults(mergeSearchResults(settled.flatMap(item => item.results))).slice(0, RESULT_LIMIT)
+    const ranked = rankSearchResults(
+      mergeSearchResults(settled.flatMap(item => item.results)),
+      { catalogCode: request.catalogCode }
+    ).slice(0, RESULT_LIMIT)
     return {
-      query,
+      mode: request.mode,
+      query: request.query,
+      catalogCode: request.catalogCode,
       results: ranked.map(result => publicResult(result, this.#issueToken(result))),
       sources: settled.map(item => item.source)
     }

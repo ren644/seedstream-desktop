@@ -149,6 +149,49 @@ test('aggregates Archive and Torznab while isolating failed sources', async () =
   }
 })
 
+test('searches bounded catalog-code variants, merges duplicates and promotes exact matches', async () => {
+  const queries = []
+  const exactHash = '1111111111111111111111111111111111111111'
+  const noisyHash = '2222222222222222222222222222222222222222'
+  const server = await listen((request, response) => {
+    const url = new URL(request.url, 'http://localhost')
+    const query = url.searchParams.get('q')
+    queries.push(query)
+    response.writeHead(200, { 'content-type': 'application/rss+xml' })
+    if (query === 'SSIS-123') {
+      response.end(`<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><item><title>[Group] SSIS-123 1080p</title><torznab:attr name="seeders" value="1"/><torznab:attr name="infohash" value="${exactHash}"/><torznab:attr name="magneturl" value="magnet:?xt=urn:btih:${exactHash}"/></item></channel></rss>`)
+      return
+    }
+    if (query === 'SSIS123') {
+      response.end(`<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel><item><title>release.ssis123.mkv</title><torznab:attr name="seeders" value="2"/><torznab:attr name="infohash" value="${exactHash}"/><torznab:attr name="magneturl" value="magnet:?xt=urn:btih:${exactHash}"/></item><item><title>Popular unrelated release</title><torznab:attr name="seeders" value="999"/><torznab:attr name="infohash" value="${noisyHash}"/><torznab:attr name="magneturl" value="magnet:?xt=urn:btih:${noisyHash}"/></item></channel></rss>`)
+      return
+    }
+    response.end('<rss><channel></channel></rss>')
+  })
+
+  try {
+    const service = new SearchService({
+      configStore: { load: async () => [{ id: 'local', name: 'Local', kind: 'torznab', endpoint: `${server.origin}/feed`, apiKey: '', enabled: true }] },
+      archiveEnabled: false,
+      timeoutMs: 1_000
+    })
+    const response = await service.search({ query: 'ssis１２３', mode: 'catalog' })
+
+    assert.deepEqual(new Set(queries), new Set(['SSIS-123', 'SSIS123', 'SSIS 123']))
+    assert.equal(queries.length, 3)
+    assert.equal(response.mode, 'catalog')
+    assert.equal(response.query, 'SSIS-123')
+    assert.equal(response.catalogCode, 'SSIS-123')
+    assert.equal(response.sources[0].count, 3)
+    assert.equal(response.results.length, 2)
+    assert.equal(response.results[0].catalogMatch, true)
+    assert.match(response.results[0].title, /SSIS/i)
+    assert.equal(response.results[1].catalogMatch, false)
+  } finally {
+    await server.close()
+  }
+})
+
 test('enforces response byte limits and request timeouts per source', async () => {
   const server = await listen((request, response) => {
     const url = new URL(request.url, 'http://localhost')

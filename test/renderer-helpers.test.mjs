@@ -139,10 +139,10 @@ test('summarizes partial search-source failures and supports deterministic UI so
   assert.equal(searchSourceSummary([]), '尚未搜索')
   assert.equal(searchSourceSummary([{ status: 'ok', count: 3 }, { status: 'error', count: 0 }]), '1 个来源可用 · 1 个来源异常 · 3 条原始结果')
   const results = [
-    { title: 'B', size: 20, seeders: 2, publishedAt: '2026-08-02T00:00:00Z', availabilityScore: 2 },
-    { title: 'A', size: 10, seeders: 8, publishedAt: '2026-08-01T00:00:00Z', availabilityScore: 8 }
+    { title: 'B', size: 20, seeders: 2, publishedAt: '2026-08-02T00:00:00Z', availabilityScore: 2, catalogMatch: true },
+    { title: 'A', size: 10, seeders: 8, publishedAt: '2026-08-01T00:00:00Z', availabilityScore: 8, catalogMatch: false }
   ]
-  assert.deepEqual(sortSearchResults(results, 'recommended').map(item => item.title), ['A', 'B'])
+  assert.deepEqual(sortSearchResults(results, 'recommended').map(item => item.title), ['B', 'A'])
   assert.deepEqual(sortSearchResults(results, 'newest').map(item => item.title), ['B', 'A'])
   assert.deepEqual(sortSearchResults(results, 'smallest').map(item => item.title), ['A', 'B'])
 })

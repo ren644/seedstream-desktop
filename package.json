@@ -1,6 +1,6 @@
 {
   "name": "seedstream-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A local-first torrent video player and downloader for macOS and Windows.",
   "author": "SeedStream Contributors",

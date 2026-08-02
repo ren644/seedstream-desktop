@@ -336,6 +336,12 @@ function createWindow () {
       try {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
+          const catalogMode = document.querySelector('#catalogCodeMode')
+          const aggregateInput = document.querySelector('#aggregateSearchInput')
+          catalogMode.checked = true
+          catalogMode.dispatchEvent(new Event('change'))
+          aggregateInput.value = 'SSIS123'
+          aggregateInput.dispatchEvent(new Event('input'))
           return {
             bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.searchTorrents === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.openSearchBrowser === 'function',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
@@ -343,13 +349,14 @@ function createWindow () {
             windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
             playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
             searchCenter: Boolean(document.querySelector('#searchCenterButton')) && Boolean(document.querySelector('#searchDialog')),
+            catalogMode: document.querySelector('#catalogCodeStatus')?.textContent?.match(/SSIS-123/)?.[0],
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,
             guidePlatform: document.querySelector('#guidePlatform')?.textContent,
             taskCount: state.tasks.length,
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.searchCenter || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.searchCenter || result.catalogMode !== 'SSIS-123' || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)

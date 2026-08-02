@@ -6,6 +6,7 @@ import {
   assertResultToken,
   assertSearchEndpoint,
   normalizeProviderConfigs,
+  normalizeSearchRequest,
   normalizeSearchQuery
 } from '../src/core/search-contract.mjs'
 
@@ -15,6 +16,26 @@ test('normalizes bounded search queries', () => {
   for (const value of ['', '   ', 42, 'a'.repeat(201), 'ok\u0000bad']) {
     assert.throws(() => normalizeSearchQuery(value), /search query/i)
   }
+})
+
+test('normalizes legacy and catalog-mode search requests', () => {
+  assert.deepEqual(normalizeSearchRequest('  Open   Movie  '), {
+    mode: 'standard',
+    query: 'Open Movie',
+    queries: ['Open Movie'],
+    catalogCode: null
+  })
+  assert.deepEqual(normalizeSearchRequest({ query: ' ssis１２３ ', mode: 'catalog' }), {
+    mode: 'catalog',
+    query: 'SSIS-123',
+    queries: ['SSIS-123', 'SSIS123', 'SSIS 123'],
+    catalogCode: 'SSIS-123'
+  })
+  assert.throws(
+    () => normalizeSearchRequest({ query: 'Open Movie', mode: 'catalog' }),
+    error => error?.code === 'INVALID_CATALOG_CODE'
+  )
+  assert.throws(() => normalizeSearchRequest({ query: 'test', mode: 'other' }), /search mode/i)
 })
 
 test('accepts only credential-free HTTP search endpoints', () => {

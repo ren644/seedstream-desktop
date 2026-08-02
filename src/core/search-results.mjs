@@ -1,3 +1,5 @@
+import { catalogCodeMatchLevel } from '../shared/catalog-code.mjs'
+
 function nonNegativeInteger (value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : null
 }
@@ -83,11 +85,20 @@ function score (result) {
   return (connectable ? 1_000_000_000_000 : 0) + (seeders * 1_000_000) + (peers * 1_000) + Math.min(downloads, 999)
 }
 
-export function rankSearchResults (input) {
+export function rankSearchResults (input, { catalogCode = null } = {}) {
   if (!Array.isArray(input)) return []
   return input
-    .map(result => ({ ...result, availabilityScore: score(result) }))
+    .map(result => {
+      const matchLevel = catalogCode ? catalogCodeMatchLevel(result.title, catalogCode) : 0
+      return {
+        ...result,
+        availabilityScore: score(result),
+        catalogMatch: matchLevel > 0,
+        catalogMatchLevel: matchLevel
+      }
+    })
     .sort((left, right) => (
+      right.catalogMatchLevel - left.catalogMatchLevel ||
       right.availabilityScore - left.availabilityScore ||
       timestamp(right.publishedAt) - timestamp(left.publishedAt) ||
       String(left.title).localeCompare(String(right.title), 'zh-CN')

@@ -25,6 +25,7 @@ import {
   searchSourceSummary,
   sortSearchResults
 } from './search-ui.mjs'
+import { catalogCodePreview } from '../shared/catalog-code.mjs'
 
 const api = window.seedstream
 const elements = {
@@ -68,6 +69,8 @@ const elements = {
   searchTabs: document.querySelector('#searchTabs'),
   aggregateSearchForm: document.querySelector('#aggregateSearchForm'),
   aggregateSearchInput: document.querySelector('#aggregateSearchInput'),
+  catalogCodeMode: document.querySelector('#catalogCodeMode'),
+  catalogCodeStatus: document.querySelector('#catalogCodeStatus'),
   searchSortSelect: document.querySelector('#searchSortSelect'),
   searchSourceSummary: document.querySelector('#searchSourceSummary'),
   searchSourceHealth: document.querySelector('#searchSourceHealth'),
@@ -227,6 +230,19 @@ function resultDate (value) {
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString('zh-CN') : '时间未知'
 }
 
+function updateCatalogModePreview () {
+  const preview = catalogCodePreview(elements.aggregateSearchInput.value, elements.catalogCodeMode.checked)
+  elements.catalogCodeStatus.classList.toggle('is-valid', preview.state === 'valid')
+  elements.catalogCodeStatus.classList.toggle('is-invalid', preview.state === 'invalid')
+  elements.catalogCodeStatus.textContent = preview.state === 'disabled'
+    ? '开启后将优先匹配完整番号'
+    : preview.message
+  elements.aggregateSearchInput.placeholder = elements.catalogCodeMode.checked
+    ? '例如：SSIS-123 或 SSIS123'
+    : '例如：Sintel 1080p'
+  return preview
+}
+
 function renderSearchResults () {
   renderSourceHealth()
   elements.searchResults.replaceChildren()
@@ -247,7 +263,10 @@ function renderSearchResults () {
     const header = makeElement('div', 'search-result-header')
     const title = makeElement('strong', '', result.title)
     title.title = result.title
-    header.append(title, makeElement('span', 'availability-chip', availabilityLabel(result)))
+    const chips = makeElement('div', 'search-result-chips')
+    if (result.catalogMatch) chips.append(makeElement('span', 'catalog-match-chip', '番号精确'))
+    chips.append(makeElement('span', 'availability-chip', availabilityLabel(result)))
+    header.append(title, chips)
 
     const meta = makeElement('div', 'search-result-meta')
     meta.append(
@@ -319,6 +338,7 @@ async function showSearchCenter () {
   elements.searchBackdrop.hidden = false
   setSearchTab(viewState.search.activeTab)
   if (!viewState.search.config) await loadSearchConfig()
+  updateCatalogModePreview()
   renderSearchResults()
   requestAnimationFrame(() => elements.searchDialog.focus())
 }
@@ -330,7 +350,20 @@ function hideSearchCenter () {
 }
 
 async function runAggregatedSearch () {
-  const response = await api.searchTorrents(elements.aggregateSearchInput.value)
+  const preview = updateCatalogModePreview()
+  if (elements.catalogCodeMode.checked && preview.state !== 'valid') {
+    const error = new TypeError('A valid catalog code is required')
+    error.code = 'INVALID_CATALOG_CODE'
+    throw error
+  }
+  const response = await api.searchTorrents({
+    query: elements.aggregateSearchInput.value,
+    mode: elements.catalogCodeMode.checked ? 'catalog' : 'standard'
+  })
+  if (response.catalogCode) {
+    elements.aggregateSearchInput.value = response.catalogCode
+    updateCatalogModePreview()
+  }
   viewState.search.results = response.results
   viewState.search.sources = response.sources
   renderSearchResults()
@@ -368,6 +401,7 @@ function errorMessage (error) {
     MAGNET_METADATA_UNAVAILABLE: '已经连接到磁力任务，但没有获得有效的种子元数据。',
     RESULT_TOKEN_EXPIRED: '这个搜索结果已过期，请重新搜索后再加入。',
     RESULT_NOT_IMPORTABLE: '这个结果没有可用的种子文件或磁力链接。',
+    INVALID_CATALOG_CODE: '没有识别到规范番号，请只输入一组字母和数字，例如 SSIS-123。',
     INVALID_CONTENT_TYPE: '来源返回的不是有效种子文件，请换一个结果。',
     SOURCE_TOO_LARGE: '来源返回的数据异常大，已为安全起见停止处理。',
     UNSUPPORTED_MEDIA: '内置播放器不支持这个文件格式或编码。',
@@ -722,6 +756,8 @@ elements.aggregateSearchForm.addEventListener('submit', event => {
   event.preventDefault()
   withBusy(runAggregatedSearch)
 })
+elements.aggregateSearchInput.addEventListener('input', updateCatalogModePreview)
+elements.catalogCodeMode.addEventListener('change', updateCatalogModePreview)
 elements.searchSortSelect.addEventListener('change', () => {
   viewState.search.sort = elements.searchSortSelect.value
   renderSearchResults()

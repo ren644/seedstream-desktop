@@ -58,7 +58,7 @@
           <h1>SEED<span>/</span>STREAM</h1>
           <p class="hero-copy">本指南可以离线打开。第一次安装先看对应系统的说明，进入应用后只需三步：打开种子、选择视频、播放或下载。</p>
         </div>
-        <span class="version">使用指南 · v0.2.0</span>
+        <span class="version">使用指南 · v0.2.1</span>
       </header>
 
       <nav aria-label="指南目录">
@@ -79,7 +79,7 @@
         <p class="section-kicker">02 / SEARCH CENTER</p>
         <h2>资源搜索中心：四种导入方式</h2>
         <div class="systems">
-          <article class="card"><h3>聚合搜索</h3><p>内置 Internet Archive，无需配置。添加你自己的 Jackett、Prowlarr 或兼容 Torznab 地址后，会并行查询、合并重复结果，并按节点、日期和容量排序。节点数只是来源报告的瞬时数据，不代表最终速度。</p></article>
+          <article class="card"><h3>聚合搜索</h3><p>内置 Internet Archive，无需配置。添加你自己的 Jackett、Prowlarr 或兼容 Torznab 地址后，会并行查询、合并重复结果，并按节点、日期和容量排序。需要按编号检索时可开启“番号识别”，输入 <code>SSIS-123</code>、<code>SSIS123</code> 或 <code>FC2-PPV-1234567</code>；应用会在本机统一格式，并把标题中完整匹配的结果排在前面。节点数只是来源报告的瞬时数据，不代表最终速度。</p></article>
           <article class="card"><h3>网页捕获</h3><p>关键词或网址会在独立沙箱窗口中打开。网页无法读取本机文件，也没有 Node.js 权限；点击 magnet 或 `.torrent` 时，SeedStream 会接管并回到任务列表。缓存、Cookie 和登录状态可一键清理。</p></article>
           <article class="card"><h3>磁力链接</h3><p>粘贴完整的 <code>magnet:?</code> 链接后，SeedStream 会寻找节点并取得文件清单。元数据速度取决于做种情况；加入任务后仍需你手动选择播放或永久下载。</p></article>
           <article class="card"><h3>私有搜索源</h3><p>Torznab API 密钥不会交给主界面或网页。系统安全存储可用时会加密后保存在本机；若系统无法安全加密，界面会提示且不会持久保存密钥。删除来源会同时删除保存的密钥。</p></article>
@@ -147,6 +147,7 @@
           <div><dt>视频或软件窗口怎么放大</dt><dd>看视频时点击播放器右上角“全屏播放”，也可以双击视频；按 Esc、再次双击或点击“退出全屏”返回。要放大整个软件，请点击应用顶部“窗口最大化”，再点一次即可还原。</dd></div>
           <div><dt>拖入文件没有反应</dt><dd>拖放区域只接收扩展名为 `.torrent` 的本机文件。网页地址请用“网页捕获”，磁力链接请在“搜索资源 → 磁力链接”中粘贴。</dd></div>
           <div><dt>搜索结果多但下载仍很慢</dt><dd>应用会优先显示来源报告中节点较多、信息较新的结果，但无法自动切换到一个不存在的“高速节点”。实际速度仍由做种者数量、对方上传、网络连通性、防火墙和运营商限制共同决定。</dd></div>
+          <div><dt>番号识别为什么没有结果</dt><dd>先确认输入是一组完整编号。识别模式会统一大小写、全角字符和连字符，并在现有来源中搜索最多三种常见写法；它不会增加新的搜索站点，所以最终结果仍取决于已经启用的来源。</dd></div>
           <div><dt>下载占用磁盘太多</dt><dd>先检查左侧显示的永久下载目录。关闭播放器只会清临时缓存，不会删除永久下载；永久文件需要你在 Finder 或资源管理器中自行管理。</dd></div>
           <div><dt>关闭 macOS 窗口后应用还在</dt><dd>这是 macOS 的标准行为。播放器会关闭并清理临时缓存；要完全退出请按 ⌘Q，或从菜单选择“退出 SeedStream”。</dd></div>
           <div><dt>Windows 双击 `.torrent` 没打开</dt><dd>文件关联只由安装版注册。便携版用户请先打开 SeedStream，再把 `.torrent` 拖进去。</dd></div>

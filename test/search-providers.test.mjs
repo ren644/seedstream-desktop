@@ -119,6 +119,17 @@ test('ranks connectable results deterministically by availability then recency',
   assert.ok(ranked[0].availabilityScore > ranked[2].availabilityScore)
 })
 
+test('promotes an exact catalog-code title match before a busier unrelated result', () => {
+  const ranked = rankSearchResults([
+    { title: 'Popular unrelated release', sourceId: 'a', sourceName: 'A', seeders: 999, magnetUri: magnet },
+    { title: '[Group] SSIS-123 1080p', sourceId: 'b', sourceName: 'B', seeders: 1, magnetUri: magnet }
+  ], { catalogCode: 'SSIS-123' })
+
+  assert.deepEqual(ranked.map(result => result.title), ['[Group] SSIS-123 1080p', 'Popular unrelated release'])
+  assert.equal(ranked[0].catalogMatch, true)
+  assert.equal(ranked[1].catalogMatch, false)
+})
+
 test('ignores malformed provider entries instead of failing the complete feed', () => {
   const xml = '<rss><channel><item><title>Good</title><link>https://example.com/file.torrent</link></item><item><title></title></item></channel></rss>'
   const results = parseTorznabFeed(xml, { id: 'mixed', name: 'Mixed' })

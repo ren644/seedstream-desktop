@@ -40,5 +40,9 @@ export function sortSearchResults (results, mode = 'recommended') {
   if (mode === 'seeders') {
     return output.sort((left, right) => (integer(right.seeders) ?? -1) - (integer(left.seeders) ?? -1) || title(left, right))
   }
-  return output.sort((left, right) => (Number(right.availabilityScore) || 0) - (Number(left.availabilityScore) || 0) || title(left, right))
+  return output.sort((left, right) => (
+    Number(Boolean(right.catalogMatch)) - Number(Boolean(left.catalogMatch)) ||
+    (Number(right.availabilityScore) || 0) - (Number(left.availabilityScore) || 0) ||
+    title(left, right)
+  ))
 }

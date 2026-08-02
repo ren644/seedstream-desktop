@@ -1,3 +1,5 @@
+import { parseCatalogCode } from '../shared/catalog-code.mjs'
+
 const QUERY_MAX_LENGTH = 200
 const ENDPOINT_MAX_LENGTH = 2048
 const MAGNET_MAX_LENGTH = 8192
@@ -21,6 +23,27 @@ function boundedText (value, { name, maxLength, allowEmpty = false } = {}) {
 
 export function normalizeSearchQuery (value) {
   return boundedText(value, { name: 'search query', maxLength: QUERY_MAX_LENGTH })
+}
+
+export function normalizeSearchRequest (value) {
+  if (typeof value === 'string') {
+    const query = normalizeSearchQuery(value)
+    return { mode: 'standard', query, queries: [query], catalogCode: null }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('A valid search request is required')
+  }
+  const mode = value.mode ?? 'standard'
+  if (!['standard', 'catalog'].includes(mode)) throw new TypeError('A valid search mode is required')
+  const query = normalizeSearchQuery(value.query)
+  if (mode === 'standard') return { mode, query, queries: [query], catalogCode: null }
+  const catalog = parseCatalogCode(query)
+  return {
+    mode,
+    query: catalog.canonical,
+    queries: catalog.variants,
+    catalogCode: catalog.canonical
+  }
 }
 
 export function assertSearchEndpoint (value) {
