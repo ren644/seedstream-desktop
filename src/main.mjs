@@ -6,6 +6,7 @@ import {
   dialog,
   ipcMain,
   Notification,
+  safeStorage,
   session,
   shell
 } from 'electron'
@@ -14,6 +15,8 @@ import WebTorrent from 'webtorrent'
 import { CacheManager } from './core/cache-manager.mjs'
 import { TaskStore } from './core/task-store.mjs'
 import { TorrentEngine } from './core/torrent-engine.mjs'
+import { SearchConfigStore } from './core/search-config-store.mjs'
+import { SearchService } from './core/search-service.mjs'
 import {
   CHANNELS,
   assertFileIndex,
@@ -35,6 +38,7 @@ const pendingTorrentPaths = []
 let mainWindow = null
 let engine = null
 let taskStore = null
+let searchService = null
 let downloadPath = null
 let persistenceChain = Promise.resolve()
 let shutdownStarted = false
@@ -189,6 +193,16 @@ function registerIpcHandlers () {
     if (message) throw new Error(message)
     return null
   })
+  registerHandler(CHANNELS.SEARCH_GET_CONFIG, async () => searchService.getConfig())
+  registerHandler(CHANNELS.SEARCH_SAVE_CONFIG, async providers => searchService.saveConfig(providers))
+  registerHandler(CHANNELS.SEARCH_QUERY, async query => searchService.search(query))
+  registerHandler(CHANNELS.SEARCH_IMPORT_RESULT, async token => {
+    const payload = await searchService.takeImportPayload(token)
+    const task = payload.kind === 'torrent'
+      ? await engine.importTorrentBuffer(payload.bytes, payload.sourceName)
+      : await engine.importMagnet(payload.magnetUri)
+    return rendererTask(task)
+  })
   registerHandler(CHANNELS.CHOOSE_TORRENT, chooseAndImportTorrent)
   registerHandler(CHANNELS.IMPORT_TORRENT_BYTES, async (input, sourceName) => {
     const task = await engine.importTorrentBuffer(
@@ -197,6 +211,7 @@ function registerIpcHandlers () {
     )
     return rendererTask(task)
   })
+  registerHandler(CHANNELS.IMPORT_MAGNET, async input => rendererTask(await engine.importMagnet(input)))
   registerHandler(CHANNELS.START_DOWNLOAD, async taskId => {
     const task = await engine.startDownload(assertTaskId(taskId))
     await saveState()
@@ -349,6 +364,15 @@ async function restoreSavedTasks (savedState) {
 async function bootstrap () {
   const userDataPath = app.getPath('userData')
   taskStore = new TaskStore(path.join(userDataPath, 'state.json'))
+  const searchConfigStore = new SearchConfigStore({
+    filePath: path.join(userDataPath, 'search-providers.json'),
+    encryption: {
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: value => safeStorage.encryptString(value),
+      decrypt: value => safeStorage.decryptString(value)
+    }
+  })
+  searchService = new SearchService({ configStore: searchConfigStore })
   const savedState = await taskStore.load().catch(error => {
     console.error('Failed to read saved task state:', error)
     return { version: 1, downloadPath: null, tasks: [] }

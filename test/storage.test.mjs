@@ -29,6 +29,7 @@ test('TaskStore only persists permanent tasks and replaces state atomically', as
           name: 'keep-me',
           policy: { phase: 'downloading', storage: 'persistent', playing: false },
           torrentFilePath: '/metadata/aaa111.torrent',
+          sourceName: 'magnet:?xt=urn:btih:secret&tr=https://private-tracker.example/announce',
           addedAt: '2026-08-01T00:00:00.000Z'
         },
         {
@@ -45,6 +46,7 @@ test('TaskStore only persists permanent tasks and replaces state atomically', as
     assert.equal(raw.tasks.length, 1)
     assert.equal(raw.tasks[0].id, 'aaa111')
     assert.equal(raw.tasks[0].policy.playing, false)
+    assert.doesNotMatch(JSON.stringify(raw), /magnet:|private-tracker/)
 
     const loaded = await store.load()
     assert.deepEqual(loaded, raw)

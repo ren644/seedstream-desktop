@@ -8,6 +8,7 @@ import { assertSafeTorrentFiles } from './path-safety.mjs'
 import { LocalMediaServer } from './local-media-server.mjs'
 import { isPlayableVideo, mediaTypeForName, publicFileSnapshot } from './media.mjs'
 import { ACTION, initialTaskPolicy, transitionTask } from './task-policy.mjs'
+import { assertMagnetUri } from './search-contract.mjs'
 
 const MAX_TORRENT_BYTES = 10 * 1024 * 1024
 const MAX_TORRENT_FILES = 10_000
@@ -92,6 +93,7 @@ export class TorrentEngine extends EventEmitter {
     downloadPath,
     parseTorrentImpl = parseTorrent,
     streamToken = randomBytes(16).toString('hex'),
+    magnetMetadataTimeoutMs = 60_000,
     now = () => new Date()
   }) {
     super()
@@ -100,6 +102,9 @@ export class TorrentEngine extends EventEmitter {
     if (typeof metadataDirectory !== 'string') throw new TypeError('TorrentEngine requires a metadata directory')
     if (typeof downloadPath !== 'string') throw new TypeError('TorrentEngine requires a download path')
     if (!/^[a-z0-9-]{8,128}$/i.test(streamToken)) throw new TypeError('Invalid stream server token')
+    if (!Number.isSafeInteger(magnetMetadataTimeoutMs) || magnetMetadataTimeoutMs < 1) {
+      throw new TypeError('Invalid magnet metadata timeout')
+    }
 
     this.client = client
     this.cacheManager = cacheManager
@@ -107,6 +112,7 @@ export class TorrentEngine extends EventEmitter {
     this.downloadPath = path.resolve(downloadPath)
     this.parseTorrent = parseTorrentImpl
     this.streamToken = streamToken
+    this.magnetMetadataTimeoutMs = magnetMetadataTimeoutMs
     this.now = now
     this.tasks = new Map()
     this.streamServer = null
@@ -185,6 +191,83 @@ export class TorrentEngine extends EventEmitter {
     this.tasks.set(task.id, task)
     this.#emitChange(task)
     return this.#snapshot(task)
+  }
+
+  async importMagnet (input) {
+    this.#assertReady()
+    let magnetUri
+    let parsed
+    try {
+      magnetUri = assertMagnetUri(input)
+      parsed = await this.parseTorrent(magnetUri)
+    } catch (error) {
+      throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link is not valid torrent metadata', { cause: error })
+    }
+    const infoHash = typeof parsed?.infoHash === 'string' ? parsed.infoHash.toLowerCase() : ''
+    if (!INFO_HASH.test(infoHash)) {
+      throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link has no supported info hash')
+    }
+    if (this.tasks.has(infoHash)) {
+      throw new TorrentEngineError('DUPLICATE_TORRENT', 'This torrent is already in the task list')
+    }
+
+    const cacheId = `magnet-${infoHash}`
+    const cachePath = await this.cacheManager.createTaskPath(cacheId)
+    let temporaryTorrent = null
+    let torrentBuffer
+    try {
+      torrentBuffer = await new Promise((resolve, reject) => {
+        let settled = false
+        const finish = (error, bytes) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timeout)
+          temporaryTorrent?.off?.('error', onError)
+          if (error) reject(error)
+          else resolve(bytes)
+        }
+        const onError = error => finish(error)
+        const timeout = setTimeout(() => {
+          finish(new TorrentEngineError('MAGNET_METADATA_TIMEOUT', 'Timed out while resolving magnet metadata'))
+        }, this.magnetMetadataTimeoutMs)
+
+        try {
+          temporaryTorrent = this.client.add(magnetUri, {
+            path: cachePath,
+            deselect: true,
+            destroyStoreOnDestroy: true,
+            noPeersIntervalTime: NO_PEERS_INTERVAL_SECONDS
+          }, readyTorrent => {
+            const file = readyTorrent?.torrentFile
+            if (!file || (!ArrayBuffer.isView(file) && !(file instanceof ArrayBuffer))) {
+              finish(new TorrentEngineError('MAGNET_METADATA_UNAVAILABLE', 'Magnet metadata could not be converted to a torrent file'))
+              return
+            }
+            const bytes = file instanceof ArrayBuffer
+              ? new Uint8Array(file)
+              : new Uint8Array(file.buffer, file.byteOffset, file.byteLength)
+            finish(null, new Uint8Array(bytes))
+          })
+          temporaryTorrent.once?.('error', onError)
+        } catch (error) {
+          finish(error)
+        }
+      })
+    } finally {
+      if (temporaryTorrent) {
+        await closeWithCallback(callback => this.client.remove(
+          temporaryTorrent.infoHash ?? infoHash,
+          { destroyStore: true },
+          callback
+        )).catch(() => {})
+      }
+      await this.cacheManager.removeTask(cacheId).catch(() => {})
+    }
+
+    const name = typeof parsed?.name === 'string' && parsed.name.trim()
+      ? parsed.name.trim().replace(/[\\/]/g, '-').slice(0, 180)
+      : `magnet-${infoHash.slice(0, 12)}`
+    return this.importTorrentBuffer(torrentBuffer, `${name}.torrent`)
   }
 
   async restorePersistentTask (record) {

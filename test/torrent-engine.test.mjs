@@ -72,9 +72,10 @@ class FakeTorrent extends EventEmitter {
 }
 
 class FakeClient extends EventEmitter {
-  constructor (parsed) {
+  constructor (parsed, torrentBuffer = null) {
     super()
     this.parsed = parsed
+    this.torrentBuffer = torrentBuffer
     this.torrents = []
     this.addCalls = []
     this.removeCalls = []
@@ -104,10 +105,13 @@ class FakeClient extends EventEmitter {
     return this.serverInstance
   }
 
-  add (_torrentBuffer, options, callback) {
+  add (torrentInput, options, callback) {
     const torrent = new FakeTorrent(this, this.parsed, options)
+    if (typeof torrentInput === 'string' && this.torrentBuffer) {
+      torrent.torrentFile = Buffer.from(this.torrentBuffer)
+    }
     this.torrents.push(torrent)
-    this.addCalls.push({ options, torrent })
+    this.addCalls.push({ input: torrentInput, options, torrent })
     queueMicrotask(() => callback(torrent))
     return torrent
   }
@@ -137,7 +141,7 @@ async function withEngine (callback) {
   try {
     const torrentBuffer = await createFixture(directory)
     const parsed = await parseTorrent(torrentBuffer)
-    const client = new FakeClient(parsed)
+    const client = new FakeClient(parsed, torrentBuffer)
     const cacheManager = new CacheManager(path.join(directory, 'cache'))
     engine = new TorrentEngine({
       client,
@@ -168,6 +172,25 @@ test('imports a real locally generated torrent and copies its metadata', async (
       () => engine.importTorrentBuffer(torrentBuffer, 'duplicate.torrent'),
       error => error.code === 'DUPLICATE_TORRENT'
     )
+  })
+})
+
+test('resolves a magnet into validated torrent metadata before creating a task', async () => {
+  await withEngine(async ({ torrentBuffer, parsed, client, engine }) => {
+    const magnet = `magnet:?xt=urn:btih:${parsed.infoHash}&dn=sample-video.mp4&tr=https%3A%2F%2Ftracker.example%2Fannounce`
+    const task = await engine.importMagnet(magnet)
+
+    assert.equal(task.id, parsed.infoHash)
+    assert.equal(task.name, 'sample-video.mp4')
+    assert.equal(client.addCalls[0].input, magnet)
+    assert.equal(client.addCalls[0].options.destroyStoreOnDestroy, true)
+    assert.equal(client.addCalls[0].options.deselect, true)
+    assert.equal(client.removeCalls[0].options.destroyStore, true)
+    assert.deepEqual(new Uint8Array(await readFile(task.torrentFilePath)), torrentBuffer)
+
+    const addCount = client.addCalls.length
+    await assert.rejects(() => engine.importMagnet(magnet), error => error.code === 'DUPLICATE_TORRENT')
+    assert.equal(client.addCalls.length, addCount, 'duplicate magnets are rejected before connecting')
   })
 })
 

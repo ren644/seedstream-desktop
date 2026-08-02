@@ -182,3 +182,32 @@ test('rejects a successful response with an unexpected content type', async () =
     await server.close()
   }
 })
+
+test('downloads a bounded remote torrent from a one-time result token', async () => {
+  const torrentBytes = Buffer.from('d4:infod4:name4:test6:lengthi1eee')
+  const server = await listen((request, response) => {
+    const url = new URL(request.url, 'http://localhost')
+    if (url.pathname === '/feed') {
+      response.writeHead(200, { 'content-type': 'application/rss+xml' })
+      response.end(`<rss><channel><item><title>Remote Torrent</title><enclosure url="${server.origin}/download" type="application/x-bittorrent"/></item></channel></rss>`)
+      return
+    }
+    response.writeHead(200, { 'content-type': 'application/x-bittorrent' })
+    response.end(torrentBytes)
+  })
+  try {
+    const service = new SearchService({
+      configStore: { load: async () => [{ id: 'remote', name: 'Remote', kind: 'torznab', endpoint: `${server.origin}/feed`, apiKey: '', enabled: true }] },
+      archiveEnabled: false,
+      timeoutMs: 1_000
+    })
+    const search = await service.search('remote')
+    const payload = await service.takeImportPayload(search.results[0].token)
+    assert.equal(payload.kind, 'torrent')
+    assert.equal(payload.sourceName, 'Remote Torrent.torrent')
+    assert.deepEqual(Buffer.from(payload.bytes), torrentBytes)
+    await assert.rejects(() => service.takeImportPayload(search.results[0].token), /expired or already used/i)
+  } finally {
+    await server.close()
+  }
+})

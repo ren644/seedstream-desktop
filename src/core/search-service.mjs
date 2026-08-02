@@ -104,6 +104,7 @@ export class SearchService {
     archiveEnabled = true,
     timeoutMs = 15_000,
     maxSearchBytes = 8 * 1024 * 1024,
+    maxTorrentBytes = 10 * 1024 * 1024,
     now = () => Date.now(),
     tokenFactory = () => randomBytes(24).toString('base64url')
   } = {}) {
@@ -115,6 +116,7 @@ export class SearchService {
     this.archiveEnabled = archiveEnabled
     this.timeoutMs = timeoutMs
     this.maxSearchBytes = maxSearchBytes
+    this.maxTorrentBytes = maxTorrentBytes
     this.now = now
     this.tokenFactory = tokenFactory
     this.resultTokens = new Map()
@@ -162,6 +164,35 @@ export class SearchService {
       expectedContentType(response, type)
       const bytes = await boundedBody(response, this.maxSearchBytes)
       return new TextDecoder().decode(bytes)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  async #fetchTorrent (url) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs)
+    try {
+      let response
+      try {
+        response = await this.fetch(url, {
+          signal: controller.signal,
+          headers: { Accept: 'application/x-bittorrent, application/octet-stream' }
+        })
+      } catch (error) {
+        if (controller.signal.aborted) throw new SearchServiceError('SEARCH_TIMEOUT', 'Torrent download timed out', { cause: error })
+        throw error
+      }
+      if (!response.ok) {
+        const error = new SearchServiceError('SOURCE_HTTP_ERROR', `Torrent source returned HTTP ${response.status}`)
+        error.status = response.status
+        throw error
+      }
+      const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
+      if (contentType && !/(?:x-bittorrent|octet-stream|force-download|application\/download)/.test(contentType)) {
+        throw new SearchServiceError('INVALID_CONTENT_TYPE', 'Torrent source returned an unexpected content type')
+      }
+      return boundedBody(response, this.maxTorrentBytes)
     } finally {
       clearTimeout(timeout)
     }
@@ -250,5 +281,23 @@ export class SearchService {
     if (!entry) throw new SearchServiceError('RESULT_TOKEN_EXPIRED', 'Search result expired or already used')
     this.resultTokens.delete(token)
     return entry.result
+  }
+
+  async takeImportPayload (input) {
+    const result = this.takeResult(input)
+    if (result.torrentUrl) {
+      try {
+        const bytes = await this.#fetchTorrent(result.torrentUrl)
+        const baseName = String(result.title || 'search-result')
+          .trim()
+          .replace(/[\\/:*?"<>|]/g, '-')
+          .slice(0, 180) || 'search-result'
+        return { kind: 'torrent', bytes, sourceName: `${baseName}.torrent` }
+      } catch (error) {
+        if (!result.magnetUri) throw error
+      }
+    }
+    if (result.magnetUri) return { kind: 'magnet', magnetUri: result.magnetUri }
+    throw new SearchServiceError('RESULT_NOT_IMPORTABLE', 'Search result has no torrent or magnet link')
   }
 }
