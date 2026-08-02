@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import {
   assertResultToken,
+  assertSearchEndpoint,
   normalizeProviderConfigs,
   normalizeSearchQuery
 } from './search-contract.mjs'
@@ -169,13 +170,13 @@ export class SearchService {
     }
   }
 
-  async #fetchTorrent (url) {
+  async #fetchTorrent (url, fetchImpl = this.fetch) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs)
     try {
       let response
       try {
-        response = await this.fetch(url, {
+        response = await fetchImpl(url, {
           signal: controller.signal,
           headers: { Accept: 'application/x-bittorrent, application/octet-stream' }
         })
@@ -299,5 +300,18 @@ export class SearchService {
     }
     if (result.magnetUri) return { kind: 'magnet', magnetUri: result.magnetUri }
     throw new SearchServiceError('RESULT_NOT_IMPORTABLE', 'Search result has no torrent or magnet link')
+  }
+
+  async downloadTorrentUrl (input, { fetchImpl = this.fetch } = {}) {
+    const url = assertSearchEndpoint(input)
+    const bytes = await this.#fetchTorrent(url, fetchImpl)
+    let sourceName = 'web-capture.torrent'
+    try {
+      const candidate = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).at(-1) ?? '')
+        .replace(/[\\/:*?"<>|]/g, '-')
+        .slice(0, 180)
+      if (candidate) sourceName = /\.torrent$/i.test(candidate) ? candidate : `${candidate}.torrent`
+    } catch {}
+    return { bytes, sourceName }
   }
 }

@@ -16,6 +16,7 @@ import { CacheManager } from './core/cache-manager.mjs'
 import { TaskStore } from './core/task-store.mjs'
 import { TorrentEngine } from './core/torrent-engine.mjs'
 import { SearchConfigStore } from './core/search-config-store.mjs'
+import { SearchBrowser } from './core/search-browser.mjs'
 import { SearchService } from './core/search-service.mjs'
 import {
   CHANNELS,
@@ -39,6 +40,7 @@ let mainWindow = null
 let engine = null
 let taskStore = null
 let searchService = null
+let searchBrowser = null
 let downloadPath = null
 let persistenceChain = Promise.resolve()
 let shutdownStarted = false
@@ -162,6 +164,21 @@ function sendNativeOpen (payload) {
   }
 }
 
+function sendSearchCaptured (payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(CHANNELS.SEARCH_CAPTURED, payload)
+  }
+}
+
+async function captureSearchTask (operation) {
+  try {
+    const task = await operation()
+    sendSearchCaptured({ ok: true, task: rendererTask(task) })
+  } catch (error) {
+    sendSearchCaptured({ ok: false, error: serializableError(error) })
+  }
+}
+
 function registerIpcHandlers () {
   registerHandler(CHANNELS.GET_STATE, async () => rendererState())
   registerHandler(CHANNELS.TOGGLE_WINDOW_MAXIMIZE, async () => {
@@ -202,6 +219,11 @@ function registerIpcHandlers () {
       ? await engine.importTorrentBuffer(payload.bytes, payload.sourceName)
       : await engine.importMagnet(payload.magnetUri)
     return rendererTask(task)
+  })
+  registerHandler(CHANNELS.SEARCH_OPEN_BROWSER, async input => searchBrowser.open(input))
+  registerHandler(CHANNELS.SEARCH_CLEAR_BROWSER_DATA, async () => {
+    await searchBrowser.clearBrowsingData()
+    return null
   })
   registerHandler(CHANNELS.CHOOSE_TORRENT, chooseAndImportTorrent)
   registerHandler(CHANNELS.IMPORT_TORRENT_BYTES, async (input, sourceName) => {
@@ -405,6 +427,23 @@ async function bootstrap () {
   registerIpcHandlers()
   createWindow()
 
+  const browserSession = session.fromPartition('persist:seedstream-search', { cache: true })
+  browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
+  browserSession.setPermissionCheckHandler?.(() => false)
+  searchBrowser = new SearchBrowser({
+    windowFactory: options => new BrowserWindow(options),
+    browserSession,
+    parentWindow: mainWindow,
+    onMagnet: magnetUri => captureSearchTask(() => engine.importMagnet(magnetUri)),
+    onTorrentUrl: url => captureSearchTask(async () => {
+      const payload = await searchService.downloadTorrentUrl(url, {
+        fetchImpl: browserSession.fetch.bind(browserSession)
+      })
+      return engine.importTorrentBuffer(payload.bytes, payload.sourceName)
+    }),
+    onError: error => sendSearchCaptured({ ok: false, error: serializableError(error) })
+  })
+
   const launchPath = extractTorrentPath(process.argv, process.platform)
   if (launchPath) pendingTorrentPaths.push(launchPath)
   const queued = pendingTorrentPaths.splice(0)
@@ -416,6 +455,8 @@ async function gracefulShutdown () {
   shutdownStarted = true
   await cleanupOpenPlayers().catch(() => {})
   await saveState().catch(() => {})
+  searchBrowser?.close()
+  await searchBrowser?.clearCache().catch(() => {})
   await engine?.shutdown().catch(error => console.error('Shutdown failed:', error))
   shutdownFinished = true
   app.quit()
@@ -425,6 +466,8 @@ async function shutdownForSmoke (exitCode) {
   shutdownStarted = true
   await cleanupOpenPlayers().catch(() => {})
   await saveState().catch(() => {})
+  searchBrowser?.close()
+  await searchBrowser?.clearCache().catch(() => {})
   await engine?.shutdown().catch(() => {})
   shutdownFinished = true
   app.exit(exitCode)
