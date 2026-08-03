@@ -1,6 +1,6 @@
 {
   "name": "seedstream-desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "A local-first torrent video player and downloader for macOS and Windows.",
   "author": "SeedStream Contributors",
@@ -18,9 +18,11 @@
     "pack:win": "electron-builder --win nsis portable --x64 && node scripts/copy-user-guide.mjs && node scripts/generate-checksums.mjs"
   },
   "dependencies": {
-    "fast-xml-parser": "5.10.1",
     "parse-torrent": "11.0.24",
     "webtorrent": "3.0.21"
+  },
+  "optionalDependencies": {
+    "utp-native": "2.5.3"
   },
   "devDependencies": {
     "create-torrent": "6.1.3",
@@ -39,7 +41,8 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/utp-native/build{,/**/*}"
     ],
     "extraResources": [
       {

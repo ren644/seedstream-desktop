@@ -21,9 +21,8 @@ test('defines unique IPC channel names', () => {
   assert.equal(CHANNELS.TOGGLE_WINDOW_MAXIMIZE, 'seedstream:window:toggle-maximize')
   assert.equal(CHANNELS.SET_VIDEO_FULLSCREEN, 'seedstream:window:set-video-fullscreen')
   assert.equal(CHANNELS.VIDEO_FULLSCREEN_CHANGED, 'seedstream:event:video-fullscreen-changed')
-  assert.equal(CHANNELS.SEARCH_QUERY, 'seedstream:search:query')
-  assert.equal(CHANNELS.SEARCH_CAPTURED, 'seedstream:event:search-captured')
   assert.equal(CHANNELS.IMPORT_MAGNET, 'seedstream:torrent:import-magnet')
+  assert.equal(values.some(value => value.includes(':search:')), false)
 })
 
 test('requires an explicit boolean for privileged video fullscreen changes', () => {

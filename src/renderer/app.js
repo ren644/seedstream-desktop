@@ -19,22 +19,15 @@ import {
   fullscreenButtonLabel,
   maximizeButtonLabel
 } from './fullscreen-controls.mjs'
-import {
-  availabilityLabel,
-  canImportSearchResult,
-  searchSourceSummary,
-  sortSearchResults
-} from './search-ui.mjs'
-import { catalogCodePreview } from '../shared/catalog-code.mjs'
 
 const api = window.seedstream
 const elements = {
   appStatus: document.querySelector('#appStatus'),
-  searchCenterButton: document.querySelector('#searchCenterButton'),
   windowMaximizeButton: document.querySelector('#windowMaximizeButton'),
   helpButton: document.querySelector('#helpButton'),
   dropZone: document.querySelector('#dropZone'),
   openTorrentButton: document.querySelector('#openTorrentButton'),
+  openMagnetButton: document.querySelector('#openMagnetButton'),
   chooseDownloadPathButton: document.querySelector('#chooseDownloadPathButton'),
   downloadPath: document.querySelector('#downloadPath'),
   taskCount: document.querySelector('#taskCount'),
@@ -63,29 +56,12 @@ const elements = {
   playerError: document.querySelector('#playerError'),
   fileCount: document.querySelector('#fileCount'),
   fileList: document.querySelector('#fileList'),
-  searchBackdrop: document.querySelector('#searchBackdrop'),
-  searchDialog: document.querySelector('#searchDialog'),
-  closeSearchButton: document.querySelector('#closeSearchButton'),
-  searchTabs: document.querySelector('#searchTabs'),
-  aggregateSearchForm: document.querySelector('#aggregateSearchForm'),
-  aggregateSearchInput: document.querySelector('#aggregateSearchInput'),
-  catalogCodeMode: document.querySelector('#catalogCodeMode'),
-  catalogCodeStatus: document.querySelector('#catalogCodeStatus'),
-  searchSortSelect: document.querySelector('#searchSortSelect'),
-  searchSourceSummary: document.querySelector('#searchSourceSummary'),
-  searchSourceHealth: document.querySelector('#searchSourceHealth'),
-  searchResults: document.querySelector('#searchResults'),
-  browserSearchForm: document.querySelector('#browserSearchForm'),
-  browserSearchInput: document.querySelector('#browserSearchInput'),
-  clearBrowserDataButton: document.querySelector('#clearBrowserDataButton'),
+  magnetBackdrop: document.querySelector('#magnetBackdrop'),
+  magnetDialog: document.querySelector('#magnetDialog'),
+  closeMagnetButton: document.querySelector('#closeMagnetButton'),
+  cancelMagnetButton: document.querySelector('#cancelMagnetButton'),
   magnetImportForm: document.querySelector('#magnetImportForm'),
   magnetInput: document.querySelector('#magnetInput'),
-  secretStorageStatus: document.querySelector('#secretStorageStatus'),
-  providerList: document.querySelector('#providerList'),
-  providerForm: document.querySelector('#providerForm'),
-  providerNameInput: document.querySelector('#providerNameInput'),
-  providerEndpointInput: document.querySelector('#providerEndpointInput'),
-  providerApiKeyInput: document.querySelector('#providerApiKeyInput'),
   onboardingBackdrop: document.querySelector('#onboardingBackdrop'),
   onboardingDialog: document.querySelector('#onboardingDialog'),
   guidePlatform: document.querySelector('#guidePlatform'),
@@ -110,16 +86,8 @@ const viewState = {
   toastTimer: null,
   removeNativeListener: null,
   removeFullscreenListener: null,
-  removeSearchListener: null,
   onboardingFocus: null,
-  searchFocus: null,
-  search: {
-    activeTab: 'aggregate',
-    results: [],
-    sources: [],
-    sort: 'recommended',
-    config: null
-  }
+  magnetFocus: null
 }
 
 function makeElement (tag, className, text) {
@@ -187,195 +155,20 @@ function hideOnboarding () {
   viewState.onboardingFocus = null
 }
 
-function searchableControls () {
-  return [...elements.searchDialog.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')]
-    .filter(element => !element.closest('[hidden]'))
+function magnetControls () {
+  return [...elements.magnetDialog.querySelectorAll('button:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')]
 }
 
-function setSearchTab (tab) {
-  const allowed = new Set(['aggregate', 'browser', 'magnet', 'sources'])
-  viewState.search.activeTab = allowed.has(tab) ? tab : 'aggregate'
-  elements.searchTabs.querySelectorAll('[data-search-tab]').forEach(button => {
-    const active = button.dataset.searchTab === viewState.search.activeTab
-    button.classList.toggle('is-active', active)
-    button.setAttribute('aria-selected', String(active))
-  })
-  elements.searchDialog.querySelectorAll('[data-search-panel]').forEach(panel => {
-    panel.hidden = panel.dataset.searchPanel !== viewState.search.activeTab
-  })
-  const focusTarget = {
-    aggregate: elements.aggregateSearchInput,
-    browser: elements.browserSearchInput,
-    magnet: elements.magnetInput,
-    sources: elements.providerNameInput
-  }[viewState.search.activeTab]
-  requestAnimationFrame(() => focusTarget?.focus())
+function showMagnetDialog () {
+  viewState.magnetFocus = document.activeElement
+  elements.magnetBackdrop.hidden = false
+  requestAnimationFrame(() => elements.magnetInput.focus())
 }
 
-function renderSourceHealth () {
-  elements.searchSourceSummary.textContent = searchSourceSummary(viewState.search.sources)
-  elements.searchSourceHealth.replaceChildren()
-  for (const source of viewState.search.sources) {
-    const status = makeElement('span', `source-health-chip is-${source.status}`)
-    status.textContent = source.status === 'ok'
-      ? `${source.name} · ${source.count}`
-      : `${source.name} · 异常`
-    if (source.message) status.title = source.message
-    elements.searchSourceHealth.append(status)
-  }
-}
-
-function resultDate (value) {
-  const date = new Date(value ?? '')
-  return Number.isFinite(date.getTime()) ? date.toLocaleDateString('zh-CN') : '时间未知'
-}
-
-function updateCatalogModePreview () {
-  const preview = catalogCodePreview(elements.aggregateSearchInput.value, elements.catalogCodeMode.checked)
-  elements.catalogCodeStatus.classList.toggle('is-valid', preview.state === 'valid')
-  elements.catalogCodeStatus.classList.toggle('is-invalid', preview.state === 'invalid')
-  elements.catalogCodeStatus.textContent = preview.state === 'disabled'
-    ? '开启后将优先匹配完整番号'
-    : preview.message
-  elements.aggregateSearchInput.placeholder = elements.catalogCodeMode.checked
-    ? '例如：SSIS-123 或 SSIS123'
-    : '例如：Sintel 1080p'
-  return preview
-}
-
-function renderSearchResults () {
-  renderSourceHealth()
-  elements.searchResults.replaceChildren()
-  const results = sortSearchResults(viewState.search.results, viewState.search.sort)
-  if (results.length === 0) {
-    const empty = makeElement('div', 'search-empty')
-    empty.append(makeElement('span', '', '⌕'))
-    empty.append(makeElement('strong', '', viewState.search.sources.length > 0 ? '没有找到可导入的结果' : '等待搜索信号'))
-    empty.append(makeElement('p', '', viewState.search.sources.length > 0
-      ? '可以换一个关键词，或在“网页捕获”中扩大搜索范围。'
-      : '无需配置也可搜索内置来源；添加私有搜索源后会自动合并结果。'))
-    elements.searchResults.append(empty)
-    return
-  }
-
-  for (const result of results) {
-    const card = makeElement('article', 'search-result-card')
-    const header = makeElement('div', 'search-result-header')
-    const title = makeElement('strong', '', result.title)
-    title.title = result.title
-    const chips = makeElement('div', 'search-result-chips')
-    if (result.catalogMatch) chips.append(makeElement('span', 'catalog-match-chip', '番号精确'))
-    chips.append(makeElement('span', 'availability-chip', availabilityLabel(result)))
-    header.append(title, chips)
-
-    const meta = makeElement('div', 'search-result-meta')
-    meta.append(
-      makeElement('span', '', result.sources?.join(' + ') || '未知来源'),
-      makeElement('span', '', formatBytes(result.size)),
-      makeElement('span', '', Number.isSafeInteger(result.seeders) ? `${result.seeders} 做种` : '节点未知'),
-      makeElement('span', '', resultDate(result.publishedAt))
-    )
-
-    const actions = makeElement('div', 'search-result-actions')
-    const importButton = actionButton('加入 SeedStream', 'import-search-result', 'button button-primary')
-    importButton.dataset.resultToken = result.token
-    importButton.disabled = !canImportSearchResult(result)
-    actions.append(importButton)
-    if (result.detailsUrl) {
-      const detailsButton = actionButton('查看来源', 'open-search-result', 'button button-quiet')
-      detailsButton.dataset.resultUrl = result.detailsUrl
-      actions.append(detailsButton)
-    }
-    card.append(header, meta, actions)
-    elements.searchResults.append(card)
-  }
-}
-
-function providerPayload (provider) {
-  return {
-    id: provider.id,
-    name: provider.name,
-    kind: provider.kind,
-    endpoint: provider.endpoint,
-    enabled: provider.enabled
-  }
-}
-
-function renderProviderList () {
-  const config = viewState.search.config
-  elements.secretStorageStatus.textContent = config?.secretsPersisted ? '系统加密可用' : '密钥不持久化'
-  elements.secretStorageStatus.classList.toggle('is-warning', !config?.secretsPersisted)
-  elements.providerList.replaceChildren()
-  const providers = config?.providers ?? []
-  if (providers.length === 0) {
-    elements.providerList.append(makeElement('div', 'provider-empty', '还没有自定义搜索源，内置来源仍然可以使用。'))
-    return
-  }
-  for (const provider of providers) {
-    const row = makeElement('article', 'provider-row')
-    const copy = makeElement('div', 'provider-copy')
-    copy.append(makeElement('strong', '', provider.name))
-    copy.append(makeElement('span', '', provider.endpoint))
-    copy.append(makeElement('small', '', `${provider.enabled ? '已启用' : '已停用'} · ${provider.apiKeyConfigured ? '密钥已保存' : '未设置密钥'}`))
-    const actions = makeElement('div', 'provider-actions')
-    const toggle = actionButton(provider.enabled ? '停用' : '启用', 'toggle-provider', 'button button-quiet')
-    toggle.dataset.providerId = provider.id
-    const remove = actionButton('移除', 'remove-provider', 'button button-danger')
-    remove.dataset.providerId = provider.id
-    actions.append(toggle, remove)
-    row.append(copy, actions)
-    elements.providerList.append(row)
-  }
-}
-
-async function loadSearchConfig () {
-  viewState.search.config = await api.getSearchConfig()
-  renderProviderList()
-}
-
-async function showSearchCenter () {
-  viewState.searchFocus = document.activeElement
-  elements.searchBackdrop.hidden = false
-  setSearchTab(viewState.search.activeTab)
-  if (!viewState.search.config) await loadSearchConfig()
-  updateCatalogModePreview()
-  renderSearchResults()
-  requestAnimationFrame(() => elements.searchDialog.focus())
-}
-
-function hideSearchCenter () {
-  elements.searchBackdrop.hidden = true
-  if (viewState.searchFocus instanceof HTMLElement) viewState.searchFocus.focus()
-  viewState.searchFocus = null
-}
-
-async function runAggregatedSearch () {
-  const preview = updateCatalogModePreview()
-  if (elements.catalogCodeMode.checked && preview.state !== 'valid') {
-    const error = new TypeError('A valid catalog code is required')
-    error.code = 'INVALID_CATALOG_CODE'
-    throw error
-  }
-  const response = await api.searchTorrents({
-    query: elements.aggregateSearchInput.value,
-    mode: elements.catalogCodeMode.checked ? 'catalog' : 'standard'
-  })
-  if (response.catalogCode) {
-    elements.aggregateSearchInput.value = response.catalogCode
-    updateCatalogModePreview()
-  }
-  viewState.search.results = response.results
-  viewState.search.sources = response.sources
-  renderSearchResults()
-  showToast(`已合并 ${response.results.length} 条结果。`)
-}
-
-async function importSearchResult (token) {
-  const task = await api.importSearchResult(token)
-  viewState.selectedTaskId = task.id
-  await refreshState(true)
-  hideSearchCenter()
-  showToast(`已加入任务：${task.name}`)
+function hideMagnetDialog () {
+  elements.magnetBackdrop.hidden = true
+  if (viewState.magnetFocus instanceof HTMLElement) viewState.magnetFocus.focus()
+  viewState.magnetFocus = null
 }
 
 async function importMagnet () {
@@ -383,13 +176,8 @@ async function importMagnet () {
   elements.magnetImportForm.reset()
   viewState.selectedTaskId = task.id
   await refreshState(true)
-  hideSearchCenter()
+  hideMagnetDialog()
   showToast(`磁力链接已解析：${task.name}`)
-}
-
-async function saveProviders (providers) {
-  viewState.search.config = await api.saveSearchConfig(providers)
-  renderProviderList()
 }
 
 function errorMessage (error) {
@@ -399,11 +187,6 @@ function errorMessage (error) {
     INVALID_MAGNET: '磁力链接格式无效，请检查后重新粘贴。',
     MAGNET_METADATA_TIMEOUT: '暂时没有找到能提供文件清单的节点，请稍后重试或换一个结果。',
     MAGNET_METADATA_UNAVAILABLE: '已经连接到磁力任务，但没有获得有效的种子元数据。',
-    RESULT_TOKEN_EXPIRED: '这个搜索结果已过期，请重新搜索后再加入。',
-    RESULT_NOT_IMPORTABLE: '这个结果没有可用的种子文件或磁力链接。',
-    INVALID_CATALOG_CODE: '没有识别到规范番号，请只输入一组字母和数字，例如 SSIS-123。',
-    INVALID_CONTENT_TYPE: '来源返回的不是有效种子文件，请换一个结果。',
-    SOURCE_TOO_LARGE: '来源返回的数据异常大，已为安全起见停止处理。',
     UNSUPPORTED_MEDIA: '内置播放器不支持这个文件格式或编码。',
     NO_DOWNLOAD_PATH: '这个任务还没有永久下载目录。',
     LOCAL_FILE_MISSING: '下载完成的视频已被移动或删除，请打开下载目录检查。',
@@ -743,91 +526,15 @@ async function handleTaskAction (action, fileIndex) {
   await refreshState(true)
 }
 
-elements.searchCenterButton.addEventListener('click', () => withBusy(showSearchCenter))
-elements.closeSearchButton.addEventListener('click', hideSearchCenter)
-elements.searchBackdrop.addEventListener('click', event => {
-  if (event.target === elements.searchBackdrop && !viewState.busy) hideSearchCenter()
+elements.openMagnetButton.addEventListener('click', showMagnetDialog)
+elements.closeMagnetButton.addEventListener('click', hideMagnetDialog)
+elements.cancelMagnetButton.addEventListener('click', hideMagnetDialog)
+elements.magnetBackdrop.addEventListener('click', event => {
+  if (event.target === elements.magnetBackdrop && !viewState.busy) hideMagnetDialog()
 })
-elements.searchTabs.addEventListener('click', event => {
-  const tab = event.target.closest('[data-search-tab]')
-  if (tab) setSearchTab(tab.dataset.searchTab)
-})
-elements.aggregateSearchForm.addEventListener('submit', event => {
-  event.preventDefault()
-  withBusy(runAggregatedSearch)
-})
-elements.aggregateSearchInput.addEventListener('input', updateCatalogModePreview)
-elements.catalogCodeMode.addEventListener('change', updateCatalogModePreview)
-elements.searchSortSelect.addEventListener('change', () => {
-  viewState.search.sort = elements.searchSortSelect.value
-  renderSearchResults()
-})
-elements.searchResults.addEventListener('click', event => {
-  const button = event.target.closest('[data-action]')
-  if (!button) return
-  if (button.dataset.action === 'import-search-result') {
-    withBusy(() => importSearchResult(button.dataset.resultToken))
-  } else if (button.dataset.action === 'open-search-result') {
-    withBusy(async () => {
-      await api.openSearchBrowser(button.dataset.resultUrl)
-      showToast('已在隔离搜索窗口中打开来源。')
-    })
-  }
-})
-elements.browserSearchForm.addEventListener('submit', event => {
-  event.preventDefault()
-  withBusy(async () => {
-    await api.openSearchBrowser(elements.browserSearchInput.value)
-    showToast('隔离搜索窗口已打开；点击磁力或种子下载即可接管。')
-  })
-})
-elements.clearBrowserDataButton.addEventListener('click', () => withBusy(async () => {
-  const confirmed = window.confirm('清理隔离网页窗口的缓存、Cookie 和登录状态？')
-  if (!confirmed) return
-  await api.clearSearchBrowserData()
-  showToast('隔离网页数据已清理。')
-}))
 elements.magnetImportForm.addEventListener('submit', event => {
   event.preventDefault()
   withBusy(importMagnet)
-})
-elements.providerForm.addEventListener('submit', event => {
-  event.preventDefault()
-  withBusy(async () => {
-    const config = viewState.search.config ?? { providers: [] }
-    const id = `source-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-    await saveProviders([
-      ...config.providers.map(providerPayload),
-      {
-        id,
-        name: elements.providerNameInput.value,
-        kind: 'torznab',
-        endpoint: elements.providerEndpointInput.value,
-        apiKey: elements.providerApiKeyInput.value,
-        enabled: true
-      }
-    ])
-    elements.providerForm.reset()
-    showToast('搜索源已保存在本机。')
-  })
-})
-elements.providerList.addEventListener('click', event => {
-  const button = event.target.closest('[data-provider-id]')
-  if (!button) return
-  withBusy(async () => {
-    const providers = viewState.search.config?.providers ?? []
-    if (button.dataset.action === 'remove-provider') {
-      const confirmed = window.confirm('移除这个搜索源？已保存的 API 密钥也会从 SeedStream 配置中删除。')
-      if (!confirmed) return
-      await saveProviders(providers.filter(provider => provider.id !== button.dataset.providerId).map(providerPayload))
-      showToast('搜索源已移除。')
-    } else if (button.dataset.action === 'toggle-provider') {
-      await saveProviders(providers.map(provider => ({
-        ...providerPayload(provider),
-        enabled: provider.id === button.dataset.providerId ? !provider.enabled : provider.enabled
-      })))
-    }
-  })
 })
 
 elements.openTorrentButton.addEventListener('click', () => withBusy(chooseTorrent))
@@ -850,8 +557,8 @@ elements.onboardingBackdrop.addEventListener('click', event => {
   if (event.target === elements.onboardingBackdrop) hideOnboarding()
 })
 document.addEventListener('keydown', event => {
-  if (event.key === 'Tab' && !elements.searchBackdrop.hidden) {
-    const controls = searchableControls()
+  if (event.key === 'Tab' && !elements.magnetBackdrop.hidden) {
+    const controls = magnetControls()
     if (controls.length === 0) return
     const first = controls[0]
     const last = controls.at(-1)
@@ -863,17 +570,10 @@ document.addEventListener('keydown', event => {
       first.focus()
     }
   } else if (event.key === 'Escape' && !elements.onboardingBackdrop.hidden) hideOnboarding()
-  else if (event.key === 'Escape' && !elements.searchBackdrop.hidden && !viewState.busy) hideSearchCenter()
+  else if (event.key === 'Escape' && !elements.magnetBackdrop.hidden && !viewState.busy) hideMagnetDialog()
   else if (event.key === 'Escape' && viewState.videoFullscreen) {
     event.preventDefault()
     togglePlayerFullscreen().catch(error => showToast(errorMessage(error), true))
-  }
-})
-elements.dropZone.addEventListener('keydown', event => {
-  if (event.target === elements.openTorrentButton) return
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault()
-    withBusy(chooseTorrent)
   }
 })
 
@@ -977,22 +677,10 @@ viewState.removeFullscreenListener = api.onVideoFullscreenChanged(payload => {
   updateFullscreenControl()
 })
 
-viewState.removeSearchListener = api.onSearchCaptured(payload => {
-  if (payload?.ok) {
-    viewState.selectedTaskId = payload.task.id
-    refreshState(true)
-    if (!elements.searchBackdrop.hidden) hideSearchCenter()
-    showToast(`网页结果已加入：${payload.task.name}`)
-  } else {
-    showToast(errorMessage(payload?.error), true)
-  }
-})
-
 window.addEventListener('beforeunload', () => {
   clearInterval(viewState.pollTimer)
   viewState.removeNativeListener?.()
   viewState.removeFullscreenListener?.()
-  viewState.removeSearchListener?.()
   if (viewState.playback) api.closePlayer(viewState.playback.taskId).catch(() => {})
 })
 

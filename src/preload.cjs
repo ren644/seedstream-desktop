@@ -6,13 +6,6 @@ const CHANNELS = Object.freeze({
   TOGGLE_WINDOW_MAXIMIZE: 'seedstream:window:toggle-maximize',
   SET_VIDEO_FULLSCREEN: 'seedstream:window:set-video-fullscreen',
   VIDEO_FULLSCREEN_CHANGED: 'seedstream:event:video-fullscreen-changed',
-  SEARCH_GET_CONFIG: 'seedstream:search:get-config',
-  SEARCH_SAVE_CONFIG: 'seedstream:search:save-config',
-  SEARCH_QUERY: 'seedstream:search:query',
-  SEARCH_IMPORT_RESULT: 'seedstream:search:import-result',
-  SEARCH_OPEN_BROWSER: 'seedstream:search:open-browser',
-  SEARCH_CLEAR_BROWSER_DATA: 'seedstream:search:clear-browser-data',
-  SEARCH_CAPTURED: 'seedstream:event:search-captured',
   CHOOSE_TORRENT: 'seedstream:torrent:choose',
   IMPORT_TORRENT_BYTES: 'seedstream:torrent:import-bytes',
   IMPORT_MAGNET: 'seedstream:torrent:import-magnet',
@@ -43,12 +36,6 @@ contextBridge.exposeInMainWorld('seedstream', Object.freeze({
   openGuide: () => invoke(CHANNELS.OPEN_GUIDE),
   toggleWindowMaximize: () => invoke(CHANNELS.TOGGLE_WINDOW_MAXIMIZE),
   setVideoFullscreen: fullscreen => invoke(CHANNELS.SET_VIDEO_FULLSCREEN, fullscreen),
-  getSearchConfig: () => invoke(CHANNELS.SEARCH_GET_CONFIG),
-  saveSearchConfig: providers => invoke(CHANNELS.SEARCH_SAVE_CONFIG, providers),
-  searchTorrents: query => invoke(CHANNELS.SEARCH_QUERY, query),
-  importSearchResult: token => invoke(CHANNELS.SEARCH_IMPORT_RESULT, token),
-  openSearchBrowser: input => invoke(CHANNELS.SEARCH_OPEN_BROWSER, input),
-  clearSearchBrowserData: () => invoke(CHANNELS.SEARCH_CLEAR_BROWSER_DATA),
   chooseTorrent: () => invoke(CHANNELS.CHOOSE_TORRENT),
   importTorrentBytes: (bytes, sourceName) => invoke(CHANNELS.IMPORT_TORRENT_BYTES, bytes, sourceName),
   importMagnet: magnetUri => invoke(CHANNELS.IMPORT_MAGNET, magnetUri),
@@ -72,11 +59,5 @@ contextBridge.exposeInMainWorld('seedstream', Object.freeze({
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on(CHANNELS.NATIVE_OPENED, listener)
     return () => ipcRenderer.removeListener(CHANNELS.NATIVE_OPENED, listener)
-  },
-  onSearchCaptured: callback => {
-    if (typeof callback !== 'function') return () => {}
-    const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on(CHANNELS.SEARCH_CAPTURED, listener)
-    return () => ipcRenderer.removeListener(CHANNELS.SEARCH_CAPTURED, listener)
   }
 }))

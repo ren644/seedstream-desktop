@@ -35,7 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-assert.equal(packageJson.version, '0.2.1')
+assert.equal(packageJson.version, '0.2.2')
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))
@@ -46,10 +46,11 @@ assert.equal(packageJson.build.nsis.runAfterFinish, true)
 assert.ok(packageJson.build.extraResources.some(resource => resource.from === 'help'))
 const fullGuide = await readFile(path.join(projectRoot, 'help', 'SeedStream-使用指南.html'), 'utf8')
 const firstLaunchGuide = await readFile(path.join(projectRoot, 'help', '首次打开说明.txt'), 'utf8')
-assert.match(fullGuide, /v0\.2\.1/)
-assert.match(fullGuide, /资源搜索中心/)
-assert.match(fullGuide, /番号识别/)
-assert.match(firstLaunchGuide, /搜索资源/)
+assert.match(fullGuide, /v0\.2\.2/)
+assert.match(fullGuide, /磁力链接/)
+assert.doesNotMatch(fullGuide, /资源搜索中心|网页捕获|Prowlarr|Torznab|番号识别/)
+assert.match(firstLaunchGuide, /粘贴磁力/)
+assert.doesNotMatch(firstLaunchGuide, /聚合搜索|网页捕获|Prowlarr|Torznab|番号识别/)
 
 const integration = await runProcess(process.execPath, [
   '--test',
@@ -71,12 +72,12 @@ try {
   assert.match(ui.stdout, /"help":true/)
   assert.match(ui.stdout, /"windowMaximize":true/)
   assert.match(ui.stdout, /"playerFullscreen":true/)
-  assert.match(ui.stdout, /"searchCenter":true/)
-  assert.match(ui.stdout, /"catalogMode":"SSIS-123"/)
+  assert.match(ui.stdout, /"magnetImport":true/)
+  assert.match(ui.stdout, /"searchRemoved":true/)
   assert.match(ui.stdout, /"onboarding":true/)
   assert.match(ui.stdout, /"guidePlatform":"macOS"/)
 } finally {
   await rm(smokeUserData, { recursive: true, force: true })
 }
 
-console.log('SeedStream smoke checks passed: local byte-range stream, secure renderer bridge, private search center, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')
+console.log('SeedStream smoke checks passed: local byte-range stream, minimal magnet import, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')

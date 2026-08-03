@@ -8,7 +8,7 @@ import { assertSafeTorrentFiles } from './path-safety.mjs'
 import { LocalMediaServer } from './local-media-server.mjs'
 import { isPlayableVideo, mediaTypeForName, publicFileSnapshot } from './media.mjs'
 import { ACTION, initialTaskPolicy, transitionTask } from './task-policy.mjs'
-import { assertMagnetUri } from './search-contract.mjs'
+import { assertMagnetUri } from './magnet-uri.mjs'
 
 const MAX_TORRENT_BYTES = 10 * 1024 * 1024
 const MAX_TORRENT_FILES = 10_000

@@ -6,7 +6,6 @@ import {
   dialog,
   ipcMain,
   Notification,
-  safeStorage,
   session,
   shell
 } from 'electron'
@@ -15,9 +14,6 @@ import WebTorrent from 'webtorrent'
 import { CacheManager } from './core/cache-manager.mjs'
 import { TaskStore } from './core/task-store.mjs'
 import { TorrentEngine } from './core/torrent-engine.mjs'
-import { SearchConfigStore } from './core/search-config-store.mjs'
-import { SearchBrowser } from './core/search-browser.mjs'
-import { SearchService } from './core/search-service.mjs'
 import {
   CHANNELS,
   assertFileIndex,
@@ -39,8 +35,6 @@ const pendingTorrentPaths = []
 let mainWindow = null
 let engine = null
 let taskStore = null
-let searchService = null
-let searchBrowser = null
 let downloadPath = null
 let persistenceChain = Promise.resolve()
 let shutdownStarted = false
@@ -164,21 +158,6 @@ function sendNativeOpen (payload) {
   }
 }
 
-function sendSearchCaptured (payload) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(CHANNELS.SEARCH_CAPTURED, payload)
-  }
-}
-
-async function captureSearchTask (operation) {
-  try {
-    const task = await operation()
-    sendSearchCaptured({ ok: true, task: rendererTask(task) })
-  } catch (error) {
-    sendSearchCaptured({ ok: false, error: serializableError(error) })
-  }
-}
-
 function registerIpcHandlers () {
   registerHandler(CHANNELS.GET_STATE, async () => rendererState())
   registerHandler(CHANNELS.TOGGLE_WINDOW_MAXIMIZE, async () => {
@@ -208,21 +187,6 @@ function registerIpcHandlers () {
       : path.join(moduleDirectory, '..', 'help', guideFileName)
     const message = await shell.openPath(guidePath)
     if (message) throw new Error(message)
-    return null
-  })
-  registerHandler(CHANNELS.SEARCH_GET_CONFIG, async () => searchService.getConfig())
-  registerHandler(CHANNELS.SEARCH_SAVE_CONFIG, async providers => searchService.saveConfig(providers))
-  registerHandler(CHANNELS.SEARCH_QUERY, async query => searchService.search(query))
-  registerHandler(CHANNELS.SEARCH_IMPORT_RESULT, async token => {
-    const payload = await searchService.takeImportPayload(token)
-    const task = payload.kind === 'torrent'
-      ? await engine.importTorrentBuffer(payload.bytes, payload.sourceName)
-      : await engine.importMagnet(payload.magnetUri)
-    return rendererTask(task)
-  })
-  registerHandler(CHANNELS.SEARCH_OPEN_BROWSER, async input => searchBrowser.open(input))
-  registerHandler(CHANNELS.SEARCH_CLEAR_BROWSER_DATA, async () => {
-    await searchBrowser.clearBrowsingData()
     return null
   })
   registerHandler(CHANNELS.CHOOSE_TORRENT, chooseAndImportTorrent)
@@ -336,27 +300,21 @@ function createWindow () {
       try {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
-          const catalogMode = document.querySelector('#catalogCodeMode')
-          const aggregateInput = document.querySelector('#aggregateSearchInput')
-          catalogMode.checked = true
-          catalogMode.dispatchEvent(new Event('change'))
-          aggregateInput.value = 'SSIS123'
-          aggregateInput.dispatchEvent(new Event('input'))
           return {
-            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.searchTorrents === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.openSearchBrowser === 'function',
+            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.searchTorrents === 'undefined' && typeof window.seedstream.openSearchBrowser === 'undefined',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
             help: Boolean(document.querySelector('#helpButton')),
             windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
             playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
-            searchCenter: Boolean(document.querySelector('#searchCenterButton')) && Boolean(document.querySelector('#searchDialog')),
-            catalogMode: document.querySelector('#catalogCodeStatus')?.textContent?.match(/SSIS-123/)?.[0],
+            magnetImport: Boolean(document.querySelector('#openMagnetButton')) && Boolean(document.querySelector('#magnetDialog')),
+            searchRemoved: !document.querySelector('#searchCenterButton') && !document.querySelector('#searchDialog') && !document.querySelector('#catalogCodeMode'),
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,
             guidePlatform: document.querySelector('#guidePlatform')?.textContent,
             taskCount: state.tasks.length,
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.searchCenter || result.catalogMode !== 'SSIS-123' || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.magnetImport || !result.searchRemoved || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)
@@ -394,15 +352,6 @@ async function restoreSavedTasks (savedState) {
 async function bootstrap () {
   const userDataPath = app.getPath('userData')
   taskStore = new TaskStore(path.join(userDataPath, 'state.json'))
-  const searchConfigStore = new SearchConfigStore({
-    filePath: path.join(userDataPath, 'search-providers.json'),
-    encryption: {
-      isAvailable: () => safeStorage.isEncryptionAvailable(),
-      encrypt: value => safeStorage.encryptString(value),
-      decrypt: value => safeStorage.decryptString(value)
-    }
-  })
-  searchService = new SearchService({ configStore: searchConfigStore })
   const savedState = await taskStore.load().catch(error => {
     console.error('Failed to read saved task state:', error)
     return { version: 1, downloadPath: null, tasks: [] }
@@ -435,23 +384,6 @@ async function bootstrap () {
   registerIpcHandlers()
   createWindow()
 
-  const browserSession = session.fromPartition('persist:seedstream-search', { cache: true })
-  browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
-  browserSession.setPermissionCheckHandler?.(() => false)
-  searchBrowser = new SearchBrowser({
-    windowFactory: options => new BrowserWindow(options),
-    browserSession,
-    parentWindow: mainWindow,
-    onMagnet: magnetUri => captureSearchTask(() => engine.importMagnet(magnetUri)),
-    onTorrentUrl: url => captureSearchTask(async () => {
-      const payload = await searchService.downloadTorrentUrl(url, {
-        fetchImpl: browserSession.fetch.bind(browserSession)
-      })
-      return engine.importTorrentBuffer(payload.bytes, payload.sourceName)
-    }),
-    onError: error => sendSearchCaptured({ ok: false, error: serializableError(error) })
-  })
-
   const launchPath = extractTorrentPath(process.argv, process.platform)
   if (launchPath) pendingTorrentPaths.push(launchPath)
   const queued = pendingTorrentPaths.splice(0)
@@ -463,8 +395,6 @@ async function gracefulShutdown () {
   shutdownStarted = true
   await cleanupOpenPlayers().catch(() => {})
   await saveState().catch(() => {})
-  searchBrowser?.close()
-  await searchBrowser?.clearCache().catch(() => {})
   await engine?.shutdown().catch(error => console.error('Shutdown failed:', error))
   shutdownFinished = true
   app.quit()
@@ -474,8 +404,6 @@ async function shutdownForSmoke (exitCode) {
   shutdownStarted = true
   await cleanupOpenPlayers().catch(() => {})
   await saveState().catch(() => {})
-  searchBrowser?.close()
-  await searchBrowser?.clearCache().catch(() => {})
   await engine?.shutdown().catch(() => {})
   shutdownFinished = true
   app.exit(exitCode)
