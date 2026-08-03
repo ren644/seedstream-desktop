@@ -35,7 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-assert.equal(packageJson.version, '0.2.2')
+assert.equal(packageJson.version, '0.3.0')
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))
@@ -46,7 +46,8 @@ assert.equal(packageJson.build.nsis.runAfterFinish, true)
 assert.ok(packageJson.build.extraResources.some(resource => resource.from === 'help'))
 const fullGuide = await readFile(path.join(projectRoot, 'help', 'SeedStream-使用指南.html'), 'utf8')
 const firstLaunchGuide = await readFile(path.join(projectRoot, 'help', '首次打开说明.txt'), 'utf8')
-assert.match(fullGuide, /v0\.2\.2/)
+assert.match(fullGuide, /v0\.3\.0/)
+assert.match(fullGuide, /晨雾.*深海.*暖砂/s)
 assert.match(fullGuide, /磁力链接/)
 assert.doesNotMatch(fullGuide, /资源搜索中心|网页捕获|Prowlarr|Torznab|番号识别/)
 assert.match(firstLaunchGuide, /粘贴磁力/)
@@ -73,6 +74,9 @@ try {
   assert.match(ui.stdout, /"windowMaximize":true/)
   assert.match(ui.stdout, /"playerFullscreen":true/)
   assert.match(ui.stdout, /"magnetImport":true/)
+  assert.match(ui.stdout, /"appearance":true/)
+  assert.match(ui.stdout, /"appearanceThemes":3/)
+  assert.match(ui.stdout, /"defaultTheme":"mist"/)
   assert.match(ui.stdout, /"searchRemoved":true/)
   assert.match(ui.stdout, /"onboarding":true/)
   assert.match(ui.stdout, /"guidePlatform":"macOS"/)
@@ -80,4 +84,4 @@ try {
   await rm(smokeUserData, { recursive: true, force: true })
 }
 
-console.log('SeedStream smoke checks passed: local byte-range stream, minimal magnet import, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')
+console.log('SeedStream smoke checks passed: local byte-range stream, minimal magnet import, three persistent appearance themes, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')

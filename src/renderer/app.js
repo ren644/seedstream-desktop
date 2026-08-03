@@ -19,10 +19,17 @@ import {
   fullscreenButtonLabel,
   maximizeButtonLabel
 } from './fullscreen-controls.mjs'
+import {
+  readTheme,
+  themeLabel,
+  writeTheme
+} from './theme-preference.mjs'
 
 const api = window.seedstream
 const elements = {
   appStatus: document.querySelector('#appStatus'),
+  appearanceButton: document.querySelector('#appearanceButton'),
+  appearanceMenu: document.querySelector('#appearanceMenu'),
   windowMaximizeButton: document.querySelector('#windowMaximizeButton'),
   helpButton: document.querySelector('#helpButton'),
   dropZone: document.querySelector('#dropZone'),
@@ -117,6 +124,31 @@ function showToast (message, isError = false) {
   viewState.toastTimer = setTimeout(() => {
     elements.toast.hidden = true
   }, 4200)
+}
+
+function appearanceOptions () {
+  return [...elements.appearanceMenu.querySelectorAll('[data-theme-option]')]
+}
+
+function hideAppearanceMenu () {
+  elements.appearanceMenu.hidden = true
+  elements.appearanceButton.setAttribute('aria-expanded', 'false')
+}
+
+function toggleAppearanceMenu () {
+  const opening = elements.appearanceMenu.hidden
+  elements.appearanceMenu.hidden = !opening
+  elements.appearanceButton.setAttribute('aria-expanded', String(opening))
+  if (opening) requestAnimationFrame(() => appearanceOptions().find(button => button.getAttribute('aria-checked') === 'true')?.focus())
+}
+
+function applyTheme (value, persist = true) {
+  const theme = persist ? writeTheme(window.localStorage, value) : value
+  document.body.dataset.theme = theme
+  elements.appearanceButton.textContent = `外观：${themeLabel(theme)}`
+  for (const button of appearanceOptions()) {
+    button.setAttribute('aria-checked', String(button.dataset.themeOption === theme))
+  }
 }
 
 function updateWindowMaximizeControl () {
@@ -537,6 +569,21 @@ elements.magnetImportForm.addEventListener('submit', event => {
   withBusy(importMagnet)
 })
 
+elements.appearanceButton.addEventListener('click', event => {
+  event.stopPropagation()
+  toggleAppearanceMenu()
+})
+elements.appearanceMenu.addEventListener('click', event => {
+  const button = event.target.closest('[data-theme-option]')
+  if (!button) return
+  applyTheme(button.dataset.themeOption)
+  hideAppearanceMenu()
+  elements.appearanceButton.focus()
+})
+document.addEventListener('click', event => {
+  if (!event.target.closest('.appearance-control')) hideAppearanceMenu()
+})
+
 elements.openTorrentButton.addEventListener('click', () => withBusy(chooseTorrent))
 elements.windowMaximizeButton.addEventListener('click', () => withBusy(async () => {
   const state = await api.toggleWindowMaximize()
@@ -569,6 +616,9 @@ document.addEventListener('keydown', event => {
       event.preventDefault()
       first.focus()
     }
+  } else if (event.key === 'Escape' && !elements.appearanceMenu.hidden) {
+    hideAppearanceMenu()
+    elements.appearanceButton.focus()
   } else if (event.key === 'Escape' && !elements.onboardingBackdrop.hidden) hideOnboarding()
   else if (event.key === 'Escape' && !elements.magnetBackdrop.hidden && !viewState.busy) hideMagnetDialog()
   else if (event.key === 'Escape' && viewState.videoFullscreen) {
@@ -684,6 +734,7 @@ window.addEventListener('beforeunload', () => {
   if (viewState.playback) api.closePlayer(viewState.playback.taskId).catch(() => {})
 })
 
+applyTheme(readTheme(window.localStorage), false)
 await refreshState()
 if (shouldShowOnboarding(window.localStorage)) showOnboarding()
 viewState.pollTimer = setInterval(() => {

@@ -307,6 +307,9 @@ function createWindow () {
             windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
             playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
             magnetImport: Boolean(document.querySelector('#openMagnetButton')) && Boolean(document.querySelector('#magnetDialog')),
+            appearance: Boolean(document.querySelector('#appearanceButton')) && Boolean(document.querySelector('#appearanceMenu')),
+            appearanceThemes: document.querySelectorAll('[data-theme-option]').length,
+            defaultTheme: document.body.dataset.theme,
             searchRemoved: !document.querySelector('#searchCenterButton') && !document.querySelector('#searchDialog') && !document.querySelector('#catalogCodeMode'),
             onboarding: !document.querySelector('#onboardingBackdrop')?.hidden,
             guidePlatform: document.querySelector('#guidePlatform')?.textContent,
@@ -314,7 +317,7 @@ function createWindow () {
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.magnetImport || !result.searchRemoved || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.magnetImport || !result.appearance || result.appearanceThemes !== 3 || result.defaultTheme !== 'mist' || !result.searchRemoved || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)

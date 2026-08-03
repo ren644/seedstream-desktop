@@ -7,7 +7,7 @@
     <title>SeedStream</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
-  <body>
+  <body data-theme="mist">
     <div class="app-frame">
       <header class="topbar">
         <div class="brand" aria-label="SeedStream">
@@ -18,6 +18,30 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <div class="appearance-control">
+            <button
+              id="appearanceButton"
+              class="help-button appearance-button"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="appearanceMenu"
+            >外观：晨雾</button>
+            <div id="appearanceMenu" class="appearance-menu" role="menu" hidden>
+              <button type="button" role="menuitemradio" data-theme-option="mist" aria-checked="true">
+                <i class="theme-swatch theme-swatch-mist" aria-hidden="true"></i>
+                <span><strong>晨雾</strong><small>淡蓝灰浅色</small></span>
+              </button>
+              <button type="button" role="menuitemradio" data-theme-option="night" aria-checked="false">
+                <i class="theme-swatch theme-swatch-night" aria-hidden="true"></i>
+                <span><strong>深海</strong><small>深蓝黑暗夜</small></span>
+              </button>
+              <button type="button" role="menuitemradio" data-theme-option="sand" aria-checked="false">
+                <i class="theme-swatch theme-swatch-sand" aria-hidden="true"></i>
+                <span><strong>暖砂</strong><small>米白暖棕</small></span>
+              </button>
+            </div>
+          </div>
           <button id="windowMaximizeButton" class="help-button" type="button" aria-pressed="false">窗口最大化</button>
           <button id="helpButton" class="help-button" type="button" aria-haspopup="dialog">使用帮助</button>
           <div class="network-indicator" title="本地应用状态">
