@@ -1,0 +1,98 @@
+diff --git a/src/core/search-browser.mjs b/src/core/search-browser.mjs
+index 298ea76..6332c59 100644
+--- a/src/core/search-browser.mjs
++++ b/src/core/search-browser.mjs
+@@ -1,6 +1,6 @@
+ import { assertMagnetUri, assertSearchEndpoint, normalizeSearchQuery } from './search-contract.mjs'
+ 
+-const DEFAULT_SEARCH_URL = 'https://duckduckgo.com/'
++const DEFAULT_SEARCH_URL = 'https://yandex.com/search/'
+ 
+ function httpTarget (value) {
+   try {
+@@ -22,7 +22,7 @@ export function resolveBrowserTarget (input) {
+   }
+   const query = normalizeSearchQuery(trimmed)
+   const url = new URL(DEFAULT_SEARCH_URL)
+-  url.searchParams.set('q', query)
++  url.searchParams.set('text', query)
+   return url.href
+ }
+ 
+@@ -54,6 +54,13 @@ export class SearchBrowser {
+     this.onError = onError
+     this.window = null
+     this.downloadListener = null
++    this.#lockDownSession()
++  }
++
++  #lockDownSession () {
++    this.browserSession.setPermissionCheckHandler?.(() => false)
++    this.browserSession.setPermissionRequestHandler?.((_webContents, _permission, callback) => callback(false))
++    this.browserSession.setDevicePermissionHandler?.(() => false)
+   }
+ 
+   #dispatch (callback, value) {
+@@ -134,7 +141,10 @@ export class SearchBrowser {
+           contextIsolation: true,
+           sandbox: true,
+           webSecurity: true,
+-          allowRunningInsecureContent: false
++          allowRunningInsecureContent: false,
++          navigateOnDragDrop: false,
++          safeDialogs: true,
++          spellcheck: false
+         }
+       }
+       if (this.parentWindow) options.parent = this.parentWindow
+diff --git a/test/search-browser.test.mjs b/test/search-browser.test.mjs
+index 34fdc8e..3943947 100644
+--- a/test/search-browser.test.mjs
++++ b/test/search-browser.test.mjs
+@@ -35,10 +35,16 @@ class FakeSession extends EventEmitter {
+     super()
+     this.cacheCleared = 0
+     this.storageCleared = 0
++    this.permissionCheckHandler = null
++    this.permissionRequestHandler = null
++    this.devicePermissionHandler = null
+   }
+ 
+   async clearCache () { this.cacheCleared += 1 }
+   async clearStorageData () { this.storageCleared += 1 }
++  setPermissionCheckHandler (handler) { this.permissionCheckHandler = handler }
++  setPermissionRequestHandler (handler) { this.permissionRequestHandler = handler }
++  setDevicePermissionHandler (handler) { this.devicePermissionHandler = handler }
+ }
+ 
+ function preventableEvent () {
+@@ -56,7 +62,7 @@ test('resolves HTTP addresses directly and keywords through a privacy search pag
+   assert.equal(resolveBrowserTarget('https://example.com/search?q=test'), 'https://example.com/search?q=test')
+   assert.equal(
+     resolveBrowserTarget('open movie 2026'),
+-    'https://duckduckgo.com/?q=open+movie+2026'
++    'https://yandex.com/search/?text=open+movie+2026'
+   )
+   for (const value of ['', 'file:///etc/passwd', 'javascript:alert(1)']) {
+     assert.throws(() => resolveBrowserTarget(value), /browser target/i)
+@@ -75,12 +81,19 @@ test('creates a sandboxed browser and captures magnet navigation', async () => {
+   })
+   const opened = await browser.open('open movie')
+ 
+-  assert.equal(opened.url, 'https://duckduckgo.com/?q=open+movie')
++  assert.equal(opened.url, 'https://yandex.com/search/?text=open+movie')
+   assert.equal(window.options.webPreferences.nodeIntegration, false)
+   assert.equal(window.options.webPreferences.contextIsolation, true)
+   assert.equal(window.options.webPreferences.sandbox, true)
+   assert.equal(window.options.webPreferences.session, browserSession)
+   assert.equal(window.options.webPreferences.preload, undefined)
++  assert.equal(window.options.webPreferences.navigateOnDragDrop, false)
++  assert.equal(window.options.webPreferences.safeDialogs, true)
++  assert.equal(browserSession.permissionCheckHandler(), false)
++  assert.equal(browserSession.devicePermissionHandler(), false)
++  let permissionGranted = true
++  browserSession.permissionRequestHandler(null, 'notifications', granted => { permissionGranted = granted })
++  assert.equal(permissionGranted, false)
+ 
+   const magnetEvent = preventableEvent()
+   window.webContents.emit('will-navigate', magnetEvent, magnet)
