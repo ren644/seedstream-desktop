@@ -22,6 +22,7 @@ test('defines unique IPC channel names', () => {
   assert.equal(CHANNELS.SET_VIDEO_FULLSCREEN, 'seedstream:window:set-video-fullscreen')
   assert.equal(CHANNELS.VIDEO_FULLSCREEN_CHANGED, 'seedstream:event:video-fullscreen-changed')
   assert.equal(CHANNELS.IMPORT_MAGNET, 'seedstream:torrent:import-magnet')
+  assert.equal(CHANNELS.CANCEL_MAGNET_IMPORT, 'seedstream:torrent:cancel-magnet-import')
   assert.equal(values.some(value => value.includes(':search:')), false)
 })
 

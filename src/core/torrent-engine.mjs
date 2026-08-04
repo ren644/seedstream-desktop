@@ -14,6 +14,10 @@ const MAX_TORRENT_BYTES = 10 * 1024 * 1024
 const MAX_TORRENT_FILES = 10_000
 const NO_PEERS_INTERVAL_SECONDS = 10
 const INFO_HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i
+export const DEFAULT_MAGNET_TRACKERS = Object.freeze([
+  'udp://tracker.opentrackr.org:1337/announce',
+  'wss://tracker.openwebtorrent.com'
+])
 
 export class TorrentEngineError extends Error {
   constructor (code, message, options) {
@@ -85,6 +89,20 @@ function closeWithCallback (operation) {
   })
 }
 
+function settleWithin (promise, timeoutMs) {
+  return new Promise(resolve => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve()
+    }
+    const timeout = setTimeout(finish, timeoutMs)
+    Promise.resolve(promise).then(finish, finish)
+  })
+}
+
 export class TorrentEngine extends EventEmitter {
   constructor ({
     client,
@@ -94,6 +112,8 @@ export class TorrentEngine extends EventEmitter {
     parseTorrentImpl = parseTorrent,
     streamToken = randomBytes(16).toString('hex'),
     magnetMetadataTimeoutMs = 60_000,
+    magnetCleanupTimeoutMs = 2_000,
+    magnetTrackers = DEFAULT_MAGNET_TRACKERS,
     now = () => new Date()
   }) {
     super()
@@ -105,6 +125,12 @@ export class TorrentEngine extends EventEmitter {
     if (!Number.isSafeInteger(magnetMetadataTimeoutMs) || magnetMetadataTimeoutMs < 1) {
       throw new TypeError('Invalid magnet metadata timeout')
     }
+    if (!Number.isSafeInteger(magnetCleanupTimeoutMs) || magnetCleanupTimeoutMs < 1) {
+      throw new TypeError('Invalid magnet cleanup timeout')
+    }
+    if (!Array.isArray(magnetTrackers) || magnetTrackers.some(tracker => typeof tracker !== 'string' || tracker.length === 0)) {
+      throw new TypeError('Invalid magnet tracker list')
+    }
 
     this.client = client
     this.cacheManager = cacheManager
@@ -113,6 +139,8 @@ export class TorrentEngine extends EventEmitter {
     this.parseTorrent = parseTorrentImpl
     this.streamToken = streamToken
     this.magnetMetadataTimeoutMs = magnetMetadataTimeoutMs
+    this.magnetCleanupTimeoutMs = magnetCleanupTimeoutMs
+    this.magnetTrackers = [...new Set(magnetTrackers)]
     this.now = now
     this.tasks = new Map()
     this.streamServer = null
@@ -121,6 +149,7 @@ export class TorrentEngine extends EventEmitter {
       token: this.streamToken,
       resolveFile: (taskId, fileIndex) => this.#resolveLocalMediaFile(taskId, fileIndex)
     })
+    this.pendingMagnetImport = null
     this.initialized = false
     this.closed = false
   }
@@ -195,44 +224,68 @@ export class TorrentEngine extends EventEmitter {
 
   async importMagnet (input) {
     this.#assertReady()
-    let magnetUri
-    let parsed
-    try {
-      magnetUri = assertMagnetUri(input)
-      parsed = await this.parseTorrent(magnetUri)
-    } catch (error) {
-      throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link is not valid torrent metadata', { cause: error })
+    if (this.pendingMagnetImport) {
+      throw new TorrentEngineError('MAGNET_IMPORT_BUSY', 'Another magnet link is already being resolved')
     }
-    const infoHash = typeof parsed?.infoHash === 'string' ? parsed.infoHash.toLowerCase() : ''
-    if (!INFO_HASH.test(infoHash)) {
-      throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link has no supported info hash')
-    }
-    if (this.tasks.has(infoHash)) {
-      throw new TorrentEngineError('DUPLICATE_TORRENT', 'This torrent is already in the task list')
+    const pendingImport = { active: true, cancelled: false, cancel: null }
+    this.pendingMagnetImport = pendingImport
+    const cancellationError = () => new TorrentEngineError('MAGNET_METADATA_CANCELLED', 'Magnet metadata resolution was cancelled')
+    const throwIfCancelled = () => {
+      if (pendingImport.cancelled) throw cancellationError()
     }
 
-    const cacheId = `magnet-${infoHash}`
-    const cachePath = await this.cacheManager.createTaskPath(cacheId)
+    let parsed
+    let infoHash = ''
+    let cacheId = null
     let temporaryTorrent = null
-    let torrentBuffer
     try {
-      torrentBuffer = await new Promise((resolve, reject) => {
+      let magnetUri
+      try {
+        magnetUri = assertMagnetUri(input)
+        parsed = await this.parseTorrent(magnetUri)
+      } catch (error) {
+        if (pendingImport.cancelled) throw cancellationError()
+        throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link is not valid torrent metadata', { cause: error })
+      }
+      throwIfCancelled()
+
+      infoHash = typeof parsed?.infoHash === 'string' ? parsed.infoHash.toLowerCase() : ''
+      if (!INFO_HASH.test(infoHash)) {
+        throw new TorrentEngineError('INVALID_MAGNET', 'The magnet link has no supported info hash')
+      }
+      if (this.tasks.has(infoHash)) {
+        throw new TorrentEngineError('DUPLICATE_TORRENT', 'This torrent is already in the task list')
+      }
+
+      cacheId = `magnet-${infoHash}`
+      const cachePath = await this.cacheManager.createTaskPath(cacheId)
+      throwIfCancelled()
+
+      const torrentBuffer = await new Promise((resolve, reject) => {
         let settled = false
         const finish = (error, bytes) => {
           if (settled) return
           settled = true
+          pendingImport.active = false
           clearTimeout(timeout)
           temporaryTorrent?.off?.('error', onError)
           if (error) reject(error)
           else resolve(bytes)
         }
         const onError = error => finish(error)
+        pendingImport.cancel = () => finish(cancellationError())
         const timeout = setTimeout(() => {
           finish(new TorrentEngineError('MAGNET_METADATA_TIMEOUT', 'Timed out while resolving magnet metadata'))
         }, this.magnetMetadataTimeoutMs)
 
+        if (pendingImport.cancelled) {
+          pendingImport.cancel()
+          return
+        }
+
         try {
           temporaryTorrent = this.client.add(magnetUri, {
+            announce: this.magnetTrackers,
             path: cachePath,
             deselect: true,
             destroyStoreOnDestroy: true,
@@ -253,21 +306,31 @@ export class TorrentEngine extends EventEmitter {
           finish(error)
         }
       })
+
+      const name = typeof parsed?.name === 'string' && parsed.name.trim()
+        ? parsed.name.trim().replace(/[\\/]/g, '-').slice(0, 180)
+        : `magnet-${infoHash.slice(0, 12)}`
+      return await this.importTorrentBuffer(torrentBuffer, `${name}.torrent`)
     } finally {
+      pendingImport.active = false
       if (temporaryTorrent) {
-        await closeWithCallback(callback => this.client.remove(
+        await settleWithin(closeWithCallback(callback => this.client.remove(
           temporaryTorrent.infoHash ?? infoHash,
           { destroyStore: true },
           callback
-        )).catch(() => {})
+        )), this.magnetCleanupTimeoutMs)
       }
-      await this.cacheManager.removeTask(cacheId).catch(() => {})
+      if (cacheId) await settleWithin(this.cacheManager.removeTask(cacheId), this.magnetCleanupTimeoutMs)
+      if (this.pendingMagnetImport === pendingImport) this.pendingMagnetImport = null
     }
+  }
 
-    const name = typeof parsed?.name === 'string' && parsed.name.trim()
-      ? parsed.name.trim().replace(/[\\/]/g, '-').slice(0, 180)
-      : `magnet-${infoHash.slice(0, 12)}`
-    return this.importTorrentBuffer(torrentBuffer, `${name}.torrent`)
+  cancelMagnetImport () {
+    const pendingImport = this.pendingMagnetImport
+    if (!pendingImport?.active) return false
+    pendingImport.cancelled = true
+    pendingImport.cancel?.()
+    return true
   }
 
   async restorePersistentTask (record) {
@@ -466,6 +529,7 @@ export class TorrentEngine extends EventEmitter {
   async shutdown () {
     if (this.closed) return
     this.closed = true
+    this.cancelMagnetImport()
 
     for (const task of this.tasks.values()) {
       if (task.activeTorrent) {

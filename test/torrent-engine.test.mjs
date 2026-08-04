@@ -72,7 +72,7 @@ class FakeTorrent extends EventEmitter {
 }
 
 class FakeClient extends EventEmitter {
-  constructor (parsed, torrentBuffer = null) {
+  constructor (parsed, torrentBuffer = null, options = {}) {
     super()
     this.parsed = parsed
     this.torrentBuffer = torrentBuffer
@@ -81,6 +81,8 @@ class FakeClient extends EventEmitter {
     this.removeCalls = []
     this.serverClosed = false
     this.destroyed = false
+    this.autoResolveMagnet = options.autoResolveMagnet !== false
+    this.completeRemove = options.completeRemove !== false
   }
 
   createServer (options, force) {
@@ -112,7 +114,9 @@ class FakeClient extends EventEmitter {
     }
     this.torrents.push(torrent)
     this.addCalls.push({ input: torrentInput, options, torrent })
-    queueMicrotask(() => callback(torrent))
+    if (typeof torrentInput !== 'string' || this.autoResolveMagnet) {
+      queueMicrotask(() => callback(torrent))
+    }
     return torrent
   }
 
@@ -125,7 +129,7 @@ class FakeClient extends EventEmitter {
     if (index === -1) throw new Error(`No torrent with id ${id}`)
     this.torrents.splice(index, 1)
     this.removeCalls.push({ id, options })
-    queueMicrotask(() => callback?.())
+    if (this.completeRemove) queueMicrotask(() => callback?.())
   }
 
   destroy (callback) {
@@ -135,20 +139,21 @@ class FakeClient extends EventEmitter {
   }
 }
 
-async function withEngine (callback) {
+async function withEngine (callback, options = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'seedstream-engine-'))
   let engine
   try {
     const torrentBuffer = await createFixture(directory)
     const parsed = await parseTorrent(torrentBuffer)
-    const client = new FakeClient(parsed, torrentBuffer)
+    const client = new FakeClient(parsed, torrentBuffer, options.client)
     const cacheManager = new CacheManager(path.join(directory, 'cache'))
     engine = new TorrentEngine({
       client,
       cacheManager,
       metadataDirectory: path.join(directory, 'metadata'),
       downloadPath: path.join(directory, 'downloads'),
-      streamToken: 'fixed-token'
+      streamToken: 'fixed-token',
+      ...options.engine
     })
     await engine.initialize()
     await callback({ directory, torrentBuffer, parsed, client, cacheManager, engine })
@@ -185,12 +190,48 @@ test('resolves a magnet into validated torrent metadata before creating a task',
     assert.equal(client.addCalls[0].input, magnet)
     assert.equal(client.addCalls[0].options.destroyStoreOnDestroy, true)
     assert.equal(client.addCalls[0].options.deselect, true)
+    assert.deepEqual(client.addCalls[0].options.announce, [
+      'udp://tracker.opentrackr.org:1337/announce',
+      'wss://tracker.openwebtorrent.com'
+    ])
     assert.equal(client.removeCalls[0].options.destroyStore, true)
     assert.deepEqual(new Uint8Array(await readFile(task.torrentFilePath)), torrentBuffer)
 
     const addCount = client.addCalls.length
     await assert.rejects(() => engine.importMagnet(magnet), error => error.code === 'DUPLICATE_TORRENT')
     assert.equal(client.addCalls.length, addCount, 'duplicate magnets are rejected before connecting')
+  })
+})
+
+test('cancels a pending magnet metadata request without waiting for its timeout', async () => {
+  await withEngine(async ({ parsed, engine }) => {
+    const magnet = `magnet:?xt=urn:btih:${parsed.infoHash}&dn=slow.mp4`
+    const pending = engine.importMagnet(magnet)
+    await new Promise(resolve => setImmediate(resolve))
+
+    assert.equal(engine.cancelMagnetImport(), true)
+    await assert.rejects(pending, error => error.code === 'MAGNET_METADATA_CANCELLED')
+    assert.equal(engine.cancelMagnetImport(), false)
+  }, {
+    client: { autoResolveMagnet: false },
+    engine: { magnetMetadataTimeoutMs: 10_000, magnetCleanupTimeoutMs: 50 }
+  })
+})
+
+test('magnet cancellation cannot hang on a missing client removal callback', async () => {
+  await withEngine(async ({ parsed, engine }) => {
+    const magnet = `magnet:?xt=urn:btih:${parsed.infoHash}&dn=stuck-cleanup.mp4`
+    const pending = engine.importMagnet(magnet)
+    await new Promise(resolve => setImmediate(resolve))
+    engine.cancelMagnetImport()
+
+    await assert.rejects(Promise.race([
+      pending,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('magnet cleanup remained stuck')), 250))
+    ]), error => error.code === 'MAGNET_METADATA_CANCELLED')
+  }, {
+    client: { autoResolveMagnet: false, completeRemove: false },
+    engine: { magnetMetadataTimeoutMs: 10_000, magnetCleanupTimeoutMs: 20 }
   })
 })
 

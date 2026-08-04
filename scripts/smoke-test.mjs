@@ -35,7 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-assert.equal(packageJson.version, '0.3.1')
+assert.equal(packageJson.version, '0.3.2')
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))
@@ -49,7 +49,7 @@ const firstLaunchGuide = await readFile(path.join(projectRoot, 'help', '首次�
 const rendererHtml = await readFile(path.join(projectRoot, 'src', 'renderer', 'index.html'), 'utf8')
 const brandMark = await readFile(path.join(projectRoot, 'src', 'renderer', 'assets', 'seedstream-mark.svg'), 'utf8')
 const appIcon = await readFile(path.join(projectRoot, 'build', 'icon.svg'), 'utf8')
-assert.match(fullGuide, /v0\.3\.1/)
+assert.match(fullGuide, /v0\.3\.2/)
 assert.match(fullGuide, /晨雾.*深海.*暖砂/s)
 assert.match(fullGuide, /磁力链接/)
 assert.doesNotMatch(fullGuide, /资源搜索中心|网页捕获|Prowlarr|Torznab|番号识别/)
@@ -65,7 +65,8 @@ for (const logoSvg of [brandMark, appIcon]) {
 
 const integration = await runProcess(process.execPath, [
   '--test',
-  'test/streaming-integration.test.mjs'
+  'test/streaming-integration.test.mjs',
+  'test/magnet-integration.test.mjs'
 ])
 assert.equal(integration.code, 0, integration.stderr || integration.stdout)
 
@@ -84,6 +85,7 @@ try {
   assert.match(ui.stdout, /"windowMaximize":true/)
   assert.match(ui.stdout, /"playerFullscreen":true/)
   assert.match(ui.stdout, /"magnetImport":true/)
+  assert.match(ui.stdout, /"magnetCancellation":true/)
   assert.match(ui.stdout, /"appearance":true/)
   assert.match(ui.stdout, /"appearanceThemes":3/)
   assert.match(ui.stdout, /"defaultTheme":"mist"/)
@@ -94,4 +96,4 @@ try {
   await rm(smokeUserData, { recursive: true, force: true })
 }
 
-console.log('SeedStream smoke checks passed: local byte-range stream, minimal magnet import, three persistent appearance themes, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')
+console.log('SeedStream smoke checks passed: local byte-range stream, cancellable magnet import, three persistent appearance themes, secure renderer bridge, video fullscreen, window maximize, first-run guide, clean UI boot, and cross-platform packaging manifest.')

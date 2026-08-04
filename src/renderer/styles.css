@@ -1175,6 +1175,40 @@ body.is-video-fullscreen .player-panel video {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.magnet-form textarea:disabled {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--paper) 88%, var(--surface-raised));
+  cursor: progress;
+}
+
+.magnet-status {
+  min-height: 42px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  color: var(--ink);
+  background: var(--accent-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.magnet-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 38%, transparent);
+  animation: magnet-pulse 1.4s ease-out infinite;
+}
+
+@keyframes magnet-pulse {
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
 .magnet-actions,
 .onboarding-actions {
   margin-top: 10px;

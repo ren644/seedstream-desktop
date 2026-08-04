@@ -58,7 +58,7 @@
           <h1>SEED<span>/</span>STREAM</h1>
           <p class="hero-copy">本指南可以离线打开。第一次安装先看对应系统的说明，进入应用后只需三步：打开种子、选择视频、播放或下载。</p>
         </div>
-        <span class="version">使用指南 · v0.3.1</span>
+        <span class="version">使用指南 · v0.3.2</span>
       </header>
 
       <nav aria-label="指南目录">
@@ -80,7 +80,7 @@
         <h2>只保留两种直接导入</h2>
         <div class="systems">
           <article class="card"><h3>.torrent 文件</h3><p>点击左侧“打开 `.torrent`”，或把本机种子文件拖入“加入种子”区域。SeedStream 会解析文件清单，再由你选择播放或下载。</p></article>
-          <article class="card"><h3>磁力链接</h3><p>点击“粘贴磁力”，输入完整的 <code>magnet:?</code> 链接。SeedStream 会寻找节点并取得文件清单；元数据速度取决于当前做种情况。</p></article>
+          <article class="card"><h3>磁力链接</h3><p>点击“粘贴磁力”，输入完整的 <code>magnet:?</code> 链接。SeedStream 会通过 DHT、链接自带 Tracker 和备用 Tracker 寻找文件清单。解析时会显示剩余等待时间；点击“取消解析”、右上角关闭或按 Esc 都能立即停止并清理临时缓存。</p></article>
         </div>
         <p class="warning">两种导入都不会自动开始永久下载。请只访问、下载或分享你拥有权利或获得明确授权的内容。</p>
       </section>
@@ -142,6 +142,7 @@
         <h2>常见状况</h2>
         <dl class="trouble">
           <div><dt>显示“没有可用节点”</dt><dd>应用等待约 10–12 秒仍未找到数据来源。可以点击播放器中的“重新连接”，检查防火墙或稍后再试；如果节点仍为 0，只能更换一个有做种者的合法来源。SeedStream 不能凭空生成不存在的内容。</dd></div>
+          <div><dt>磁力链接一直在解析</dt><dd>磁力链接本身通常只有内容标识，必须先从其他节点取得文件清单。界面会显示最长剩余等待时间；点击“取消解析”、右上角关闭或按 Esc 可立即退出，不会再锁住整个窗口。没有任何节点持有元数据时，即使链接格式正确也无法解析。</dd></div>
           <div><dt>能下载但视频不能播放</dt><dd>内置播放器受 Chromium 编解码器限制。H.265、DTS、AC3 和部分 MKV/AVI 组合可能不兼容；下载完成后点击“系统打开”，可交给 VLC、IINA 等播放器处理。</dd></div>
           <div><dt>视频或软件窗口怎么放大</dt><dd>看视频时点击播放器右上角“全屏播放”，也可以双击视频；按 Esc、再次双击或点击“退出全屏”返回。要放大整个软件，请点击应用顶部“窗口最大化”，再点一次即可还原。</dd></div>
           <div><dt>拖入文件没有反应</dt><dd>拖放区域只接收扩展名为 `.torrent` 的本机文件。磁力链接请点击左侧“粘贴磁力”后输入。</dd></div>

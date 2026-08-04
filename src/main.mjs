@@ -198,6 +198,7 @@ function registerIpcHandlers () {
     return rendererTask(task)
   })
   registerHandler(CHANNELS.IMPORT_MAGNET, async input => rendererTask(await engine.importMagnet(input)))
+  registerHandler(CHANNELS.CANCEL_MAGNET_IMPORT, async () => ({ cancelled: engine.cancelMagnetImport() }))
   registerHandler(CHANNELS.START_DOWNLOAD, async taskId => {
     const task = await engine.startDownload(assertTaskId(taskId))
     await saveState()
@@ -301,12 +302,13 @@ function createWindow () {
         const result = await mainWindow.webContents.executeJavaScript(`(async () => {
           const state = await window.seedstream.getState()
           return {
-            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.searchTorrents === 'undefined' && typeof window.seedstream.openSearchBrowser === 'undefined',
+            bridge: typeof window.seedstream.playFile === 'function' && typeof window.seedstream.openDownloadedFile === 'function' && typeof window.seedstream.toggleWindowMaximize === 'function' && typeof window.seedstream.setVideoFullscreen === 'function' && typeof window.seedstream.importMagnet === 'function' && typeof window.seedstream.cancelMagnetImport === 'function' && typeof window.seedstream.searchTorrents === 'undefined' && typeof window.seedstream.openSearchBrowser === 'undefined',
             brand: document.querySelector('h1')?.textContent?.replace(/\\s/g, ''),
             help: Boolean(document.querySelector('#helpButton')),
             windowMaximize: Boolean(document.querySelector('#windowMaximizeButton')),
             playerFullscreen: Boolean(document.querySelector('#fullscreenPlayerButton')),
             magnetImport: Boolean(document.querySelector('#openMagnetButton')) && Boolean(document.querySelector('#magnetDialog')),
+            magnetCancellation: Boolean(document.querySelector('#cancelMagnetButton')) && Boolean(document.querySelector('#magnetStatus')),
             appearance: Boolean(document.querySelector('#appearanceButton')) && Boolean(document.querySelector('#appearanceMenu')),
             appearanceThemes: document.querySelectorAll('[data-theme-option]').length,
             defaultTheme: document.body.dataset.theme,
@@ -317,7 +319,7 @@ function createWindow () {
             downloadPath: state.downloadPath
           }
         })()`)
-        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.magnetImport || !result.appearance || result.appearanceThemes !== 3 || result.defaultTheme !== 'mist' || !result.searchRemoved || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
+        if (!result.bridge || result.brand !== 'SEED/STREAM' || !result.help || !result.windowMaximize || !result.playerFullscreen || !result.magnetImport || !result.magnetCancellation || !result.appearance || result.appearanceThemes !== 3 || result.defaultTheme !== 'mist' || !result.searchRemoved || !result.onboarding || !result.guidePlatform || !result.downloadPath) {
           throw new Error(`Unexpected renderer smoke result: ${JSON.stringify(result)}`)
         }
         console.log(`SEEDSTREAM_UI_SMOKE_OK ${JSON.stringify(result)}`)

@@ -171,9 +171,13 @@
         <form id="magnetImportForm" class="magnet-form">
           <label for="magnetInput">磁力链接</label>
           <textarea id="magnetInput" rows="6" maxlength="8192" spellcheck="false" autocomplete="off" placeholder="magnet:?xt=urn:btih:…" required></textarea>
+          <div id="magnetStatus" class="magnet-status" role="status" aria-live="polite" hidden>
+            <span class="magnet-status-dot" aria-hidden="true"></span>
+            <span id="magnetStatusText">正在寻找可提供文件清单的节点…</span>
+          </div>
           <div class="magnet-actions">
             <button id="cancelMagnetButton" class="button button-quiet" type="button">取消</button>
-            <button class="button button-primary" type="submit">解析并加入</button>
+            <button id="submitMagnetButton" class="button button-primary" type="submit">解析并加入</button>
           </div>
         </form>
       </section>

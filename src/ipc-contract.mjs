@@ -13,6 +13,7 @@ export const CHANNELS = Object.freeze({
   CHOOSE_TORRENT: 'seedstream:torrent:choose',
   IMPORT_TORRENT_BYTES: 'seedstream:torrent:import-bytes',
   IMPORT_MAGNET: 'seedstream:torrent:import-magnet',
+  CANCEL_MAGNET_IMPORT: 'seedstream:torrent:cancel-magnet-import',
   START_DOWNLOAD: 'seedstream:torrent:start-download',
   PLAY_FILE: 'seedstream:torrent:play-file',
   OPEN_DOWNLOADED_FILE: 'seedstream:torrent:open-downloaded-file',

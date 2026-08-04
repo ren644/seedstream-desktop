@@ -67,8 +67,11 @@ const elements = {
   magnetDialog: document.querySelector('#magnetDialog'),
   closeMagnetButton: document.querySelector('#closeMagnetButton'),
   cancelMagnetButton: document.querySelector('#cancelMagnetButton'),
+  submitMagnetButton: document.querySelector('#submitMagnetButton'),
   magnetImportForm: document.querySelector('#magnetImportForm'),
   magnetInput: document.querySelector('#magnetInput'),
+  magnetStatus: document.querySelector('#magnetStatus'),
+  magnetStatusText: document.querySelector('#magnetStatusText'),
   onboardingBackdrop: document.querySelector('#onboardingBackdrop'),
   onboardingDialog: document.querySelector('#onboardingDialog'),
   guidePlatform: document.querySelector('#guidePlatform'),
@@ -94,8 +97,14 @@ const viewState = {
   removeNativeListener: null,
   removeFullscreenListener: null,
   onboardingFocus: null,
-  magnetFocus: null
+  magnetFocus: null,
+  magnetResolving: false,
+  magnetCancelRequested: false,
+  magnetStartedAt: 0,
+  magnetStatusTimer: null
 }
+
+const MAGNET_METADATA_TIMEOUT_SECONDS = 60
 
 function makeElement (tag, className, text) {
   const element = document.createElement(tag)
@@ -203,13 +212,91 @@ function hideMagnetDialog () {
   viewState.magnetFocus = null
 }
 
+function updateMagnetStatus () {
+  if (!viewState.magnetResolving) return
+  if (viewState.magnetCancelRequested) {
+    elements.magnetStatusText.textContent = '正在取消解析并清理临时缓存…'
+    return
+  }
+
+  const elapsedSeconds = Math.floor((Date.now() - viewState.magnetStartedAt) / 1000)
+  const remainingSeconds = Math.max(0, MAGNET_METADATA_TIMEOUT_SECONDS - elapsedSeconds)
+  elements.magnetStatusText.textContent = elapsedSeconds < 12
+    ? `正在通过 DHT 和 Tracker 寻找节点 · 最长等待 ${remainingSeconds} 秒`
+    : `暂未找到提供文件清单的节点 · 最长还剩 ${remainingSeconds} 秒`
+}
+
+function setMagnetResolving (resolving) {
+  viewState.magnetResolving = resolving
+  elements.magnetDialog.setAttribute('aria-busy', String(resolving))
+  elements.magnetInput.disabled = resolving
+  elements.submitMagnetButton.disabled = resolving
+  elements.submitMagnetButton.textContent = resolving ? '正在解析…' : '解析并加入'
+  elements.cancelMagnetButton.disabled = false
+  elements.cancelMagnetButton.textContent = resolving ? '取消解析' : '取消'
+  elements.closeMagnetButton.disabled = false
+  elements.magnetStatus.hidden = !resolving
+  clearInterval(viewState.magnetStatusTimer)
+  viewState.magnetStatusTimer = null
+
+  if (resolving) {
+    viewState.magnetStartedAt = Date.now()
+    updateMagnetStatus()
+    viewState.magnetStatusTimer = setInterval(updateMagnetStatus, 1000)
+  } else {
+    viewState.magnetCancelRequested = false
+    viewState.magnetStartedAt = 0
+  }
+}
+
 async function importMagnet () {
-  const task = await api.importMagnet(elements.magnetInput.value.trim())
-  elements.magnetImportForm.reset()
-  viewState.selectedTaskId = task.id
-  await refreshState(true)
-  hideMagnetDialog()
-  showToast(`磁力链接已解析：${task.name}`)
+  if (viewState.magnetResolving) return
+  viewState.magnetCancelRequested = false
+  setMagnetResolving(true)
+  let closeAfterFinish = false
+  try {
+    const task = await api.importMagnet(elements.magnetInput.value.trim())
+    elements.magnetImportForm.reset()
+    viewState.selectedTaskId = task.id
+    await refreshState(true)
+    closeAfterFinish = true
+    showToast(`磁力链接已解析：${task.name}`)
+  } catch (error) {
+    if (viewState.magnetCancelRequested || error?.code === 'MAGNET_METADATA_CANCELLED') {
+      closeAfterFinish = true
+      showToast('已取消磁力解析，临时缓存已清理。')
+    } else {
+      showToast(errorMessage(error), true)
+    }
+  } finally {
+    setMagnetResolving(false)
+    if (closeAfterFinish) hideMagnetDialog()
+  }
+}
+
+async function requestCloseMagnetDialog () {
+  if (!viewState.magnetResolving) {
+    hideMagnetDialog()
+    return
+  }
+  if (viewState.magnetCancelRequested) return
+
+  viewState.magnetCancelRequested = true
+  elements.cancelMagnetButton.disabled = true
+  updateMagnetStatus()
+  try {
+    const result = await api.cancelMagnetImport()
+    if (!result?.cancelled && viewState.magnetResolving) {
+      viewState.magnetCancelRequested = false
+      elements.cancelMagnetButton.disabled = false
+      updateMagnetStatus()
+    }
+  } catch (error) {
+    viewState.magnetCancelRequested = false
+    elements.cancelMagnetButton.disabled = false
+    updateMagnetStatus()
+    showToast(errorMessage(error), true)
+  }
 }
 
 function errorMessage (error) {
@@ -217,6 +304,8 @@ function errorMessage (error) {
     DUPLICATE_TORRENT: '这个种子已经在任务列表中。',
     INVALID_TORRENT_FILE: '无法解析该文件，请确认它是有效的 .torrent 种子。',
     INVALID_MAGNET: '磁力链接格式无效，请检查后重新粘贴。',
+    MAGNET_IMPORT_BUSY: '已有一个磁力链接正在解析，请先取消或等待它完成。',
+    MAGNET_METADATA_CANCELLED: '磁力解析已取消。',
     MAGNET_METADATA_TIMEOUT: '暂时没有找到能提供文件清单的节点，请稍后重试或换一个结果。',
     MAGNET_METADATA_UNAVAILABLE: '已经连接到磁力任务，但没有获得有效的种子元数据。',
     UNSUPPORTED_MEDIA: '内置播放器不支持这个文件格式或编码。',
@@ -559,14 +648,14 @@ async function handleTaskAction (action, fileIndex) {
 }
 
 elements.openMagnetButton.addEventListener('click', showMagnetDialog)
-elements.closeMagnetButton.addEventListener('click', hideMagnetDialog)
-elements.cancelMagnetButton.addEventListener('click', hideMagnetDialog)
+elements.closeMagnetButton.addEventListener('click', requestCloseMagnetDialog)
+elements.cancelMagnetButton.addEventListener('click', requestCloseMagnetDialog)
 elements.magnetBackdrop.addEventListener('click', event => {
-  if (event.target === elements.magnetBackdrop && !viewState.busy) hideMagnetDialog()
+  if (event.target === elements.magnetBackdrop && !viewState.busy) requestCloseMagnetDialog()
 })
 elements.magnetImportForm.addEventListener('submit', event => {
   event.preventDefault()
-  withBusy(importMagnet)
+  importMagnet()
 })
 
 elements.appearanceButton.addEventListener('click', event => {
@@ -620,7 +709,10 @@ document.addEventListener('keydown', event => {
     hideAppearanceMenu()
     elements.appearanceButton.focus()
   } else if (event.key === 'Escape' && !elements.onboardingBackdrop.hidden) hideOnboarding()
-  else if (event.key === 'Escape' && !elements.magnetBackdrop.hidden && !viewState.busy) hideMagnetDialog()
+  else if (event.key === 'Escape' && !elements.magnetBackdrop.hidden && !viewState.busy) {
+    event.preventDefault()
+    requestCloseMagnetDialog()
+  }
   else if (event.key === 'Escape' && viewState.videoFullscreen) {
     event.preventDefault()
     togglePlayerFullscreen().catch(error => showToast(errorMessage(error), true))
@@ -729,8 +821,10 @@ viewState.removeFullscreenListener = api.onVideoFullscreenChanged(payload => {
 
 window.addEventListener('beforeunload', () => {
   clearInterval(viewState.pollTimer)
+  clearInterval(viewState.magnetStatusTimer)
   viewState.removeNativeListener?.()
   viewState.removeFullscreenListener?.()
+  if (viewState.magnetResolving) api.cancelMagnetImport().catch(() => {})
   if (viewState.playback) api.closePlayer(viewState.playback.taskId).catch(() => {})
 })
 
