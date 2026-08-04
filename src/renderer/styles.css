@@ -172,22 +172,10 @@ button:disabled {
 }
 
 .brand-mark {
-  position: relative;
   width: 48px;
   height: 48px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--topbar-ink);
-  border-radius: 50%;
-  font: 700 25px/1 var(--serif);
-}
-
-.brand-mark::after {
-  position: absolute;
-  bottom: 4px;
-  content: "STREAM";
-  font: 800 5px/1 var(--sans);
-  letter-spacing: 0.16em;
+  display: block;
+  flex: 0 0 auto;
 }
 
 .eyebrow,

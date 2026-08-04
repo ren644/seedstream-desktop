@@ -35,7 +35,7 @@ function runProcess (command, args, options = {}) {
 }
 
 const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-assert.equal(packageJson.version, '0.3.0')
+assert.equal(packageJson.version, '0.3.1')
 assert.equal(packageJson.build.appId, 'com.seedstream.desktop')
 assert.ok(packageJson.build.mac.target.includes('dmg'))
 assert.ok(packageJson.build.win.target.includes('nsis'))
@@ -46,12 +46,22 @@ assert.equal(packageJson.build.nsis.runAfterFinish, true)
 assert.ok(packageJson.build.extraResources.some(resource => resource.from === 'help'))
 const fullGuide = await readFile(path.join(projectRoot, 'help', 'SeedStream-使用指南.html'), 'utf8')
 const firstLaunchGuide = await readFile(path.join(projectRoot, 'help', '首次打开说明.txt'), 'utf8')
-assert.match(fullGuide, /v0\.3\.0/)
+const rendererHtml = await readFile(path.join(projectRoot, 'src', 'renderer', 'index.html'), 'utf8')
+const brandMark = await readFile(path.join(projectRoot, 'src', 'renderer', 'assets', 'seedstream-mark.svg'), 'utf8')
+const appIcon = await readFile(path.join(projectRoot, 'build', 'icon.svg'), 'utf8')
+assert.match(fullGuide, /v0\.3\.1/)
 assert.match(fullGuide, /晨雾.*深海.*暖砂/s)
 assert.match(fullGuide, /磁力链接/)
 assert.doesNotMatch(fullGuide, /资源搜索中心|网页捕获|Prowlarr|Torznab|番号识别/)
 assert.match(firstLaunchGuide, /粘贴磁力/)
 assert.doesNotMatch(firstLaunchGuide, /聚合搜索|网页捕获|Prowlarr|Torznab|番号识别/)
+assert.match(rendererHtml, /assets\/seedstream-mark\.svg/)
+for (const logoSvg of [brandMark, appIcon]) {
+  assert.match(logoSvg, /#071b32/)
+  assert.match(logoSvg, /#ff6645/)
+  assert.match(logoSvg, /#f7f2e9/)
+  assert.doesNotMatch(logoSvg, /gradient|filter/i)
+}
 
 const integration = await runProcess(process.execPath, [
   '--test',

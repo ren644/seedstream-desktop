@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">SeedStream</title>
+  <rect x="56" y="56" width="912" height="912" rx="216" fill="#f7f2e9"/>
+  <defs>
+    <clipPath id="frames">
+      <rect x="144" y="336" width="560" height="560" rx="132"/>
+      <rect x="320" y="160" width="560" height="560" rx="132"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#frames)">
+    <rect width="1024" height="1024" fill="#ff6645"/>
+    <path d="M0 0 H1024 V1024 H756 C756 711 718 654 634 619 C570 592 493 582 472 552 C455 527 489 508 552 501 C624 493 690 517 721 481 C746 452 714 419 643 401 C531 373 300 374 100 410 L0 410 Z" fill="#071b32"/>
+    <path
+      d="M100 410 C300 374 531 373 643 401 C714 419 746 452 721 481 C690 517 624 493 552 501 C489 508 455 527 472 552 C493 582 570 592 634 619 C718 654 756 711 756 815"
+      fill="none"
+      stroke="#f7f2e9"
+      stroke-width="78"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

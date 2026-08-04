@@ -1,21 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>SeedStream</title>
+  <rect x="56" y="56" width="912" height="912" rx="216" fill="#f7f2e9"/>
+
   <defs>
-    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#172126"/>
-      <stop offset="1" stop-color="#080c0f"/>
-    </linearGradient>
-    <linearGradient id="seed" x1="0.15" y1="0.1" x2="0.85" y2="0.9">
-      <stop offset="0" stop-color="#ff9a62"/>
-      <stop offset="1" stop-color="#ff6338"/>
-    </linearGradient>
-    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="32" stdDeviation="34" flood-color="#000000" flood-opacity="0.42"/>
-    </filter>
+    <clipPath id="frames">
+      <rect x="144" y="336" width="560" height="560" rx="132"/>
+      <rect x="320" y="160" width="560" height="560" rx="132"/>
+    </clipPath>
   </defs>
-  <rect x="56" y="56" width="912" height="912" rx="218" fill="url(#panel)" stroke="#344248" stroke-width="12" filter="url(#shadow)"/>
-  <path d="M160 319H864M160 512H864M160 705H864M319 160V864M512 160V864M705 160V864" stroke="#d5e2df" stroke-opacity="0.055" stroke-width="8"/>
-  <circle cx="512" cy="512" r="306" fill="none" stroke="#9be8c0" stroke-opacity="0.42" stroke-width="12"/>
-  <circle cx="512" cy="512" r="248" fill="url(#seed)" filter="url(#shadow)"/>
-  <path d="M648 356C590 298 438 293 378 372C312 460 403 507 511 532C626 559 701 603 651 685C596 775 427 762 360 692" fill="none" stroke="#10171b" stroke-width="82" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="763" cy="337" r="31" fill="#9be8c0" stroke="#10171b" stroke-width="14"/>
+
+  <!-- The paired silhouette is divided by one S-shaped stream, not layered. -->
+  <g clip-path="url(#frames)">
+    <rect width="1024" height="1024" fill="#ff6645"/>
+    <path
+      d="M0 0 H1024 V1024 H756
+         C756 711 718 654 634 619
+         C570 592 493 582 472 552
+         C455 527 489 508 552 501
+         C624 493 690 517 721 481
+         C746 452 714 419 643 401
+         C531 373 300 374 100 410
+         L0 410 Z"
+      fill="#071b32"
+    />
+    <path
+      d="M100 410
+         C300 374 531 373 643 401
+         C714 419 746 452 721 481
+         C690 517 624 493 552 501
+         C489 508 455 527 472 552
+         C493 582 570 592 634 619
+         C718 654 756 711 756 815"
+      fill="none"
+      stroke="#f7f2e9"
+      stroke-width="78"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>
